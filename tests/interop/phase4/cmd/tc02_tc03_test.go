@@ -715,8 +715,8 @@ func getCertsDir() string {
 	}
 	// Default locations to try
 	locations := []string{
-		"../certs",           // When running from cmd directory
-		"certs",              // When running from phase4 directory
+		"../certs",                   // When running from cmd directory
+		"certs",                      // When running from phase4 directory
 		"tests/interop/phase4/certs", // When running from go-as4 root
 	}
 	for _, loc := range locations {

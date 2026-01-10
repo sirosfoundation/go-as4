@@ -17,10 +17,10 @@ import (
 // SecurityProcessor handles signing and encryption for MSH
 // It provides an adapter layer between MSH and the security package implementations
 type SecurityProcessor struct {
-	signer       security.Signer           // Uses the Signer interface (RSASigner or AS4Signer)
-	encryptor    *security.AESEncryptor    // Legacy encryptor (deprecated)
-	wssEncryptor *security.WSSEncryptor    // WS-Security compliant encryptor
-	wssDecryptor *security.WSSDecryptor    // WS-Security compliant decryptor
+	signer       security.Signer        // Uses the Signer interface (RSASigner or AS4Signer)
+	encryptor    *security.AESEncryptor // Legacy encryptor (deprecated)
+	wssEncryptor *security.WSSEncryptor // WS-Security compliant encryptor
+	wssDecryptor *security.WSSDecryptor // WS-Security compliant decryptor
 }
 
 // NewSecurityProcessor creates a new security processor

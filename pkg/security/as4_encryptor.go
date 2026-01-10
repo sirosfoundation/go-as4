@@ -390,7 +390,6 @@ func addCertificateReference(keyInfo *etree.Element, cert *x509.Certificate, ref
 	return nil
 }
 
-// 
 // NOTE: This function uses direct cid: references which may not work with all implementations.
 // For phase4/WSS4J compatibility, use AddSwAEncryptionToDocument instead.
 func AddEncryptedKeysToSecurity(doc *etree.Document, attachmentEncKeys map[string][]byte, recipientCert *x509.Certificate) error {

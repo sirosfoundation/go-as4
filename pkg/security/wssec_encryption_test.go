@@ -59,7 +59,7 @@ func TestWSSEncryptorDecryptor(t *testing.T) {
 
 	// Test decryption
 	decryptor := NewWSSDecryptor(recipientPrivate, nil)
-	
+
 	// Prepare encrypted payload inputs
 	encryptedInputs := make([]EncryptedPayloadInput, len(result.EncryptedPayloads))
 	for i, ep := range result.EncryptedPayloads {
@@ -101,7 +101,7 @@ func TestWSSEncryptorWithCustomHKDFInfo(t *testing.T) {
 	}
 
 	encryptor := NewWSSEncryptor(recipientPrivate.PublicKey(), opts)
-	
+
 	payloads := []PayloadData{
 		{
 			ContentID: "test@example.com",
@@ -160,7 +160,7 @@ func TestAddEncryptedKeyToSecurityHeader(t *testing.T) {
 	// Generate test EncryptedKey
 	recipientPrivate, _ := xmlenc.GenerateX25519KeyPair()
 	encryptor := NewWSSEncryptor(recipientPrivate.PublicKey(), nil)
-	
+
 	payloads := []PayloadData{
 		{ContentID: "test@example.com", MimeType: "text/plain", Data: []byte("test")},
 	}
@@ -212,7 +212,7 @@ func TestEncryptedKeyParsing(t *testing.T) {
 	// Generate and encrypt
 	recipientPrivate, _ := xmlenc.GenerateX25519KeyPair()
 	encryptor := NewWSSEncryptor(recipientPrivate.PublicKey(), nil)
-	
+
 	payloads := []PayloadData{
 		{ContentID: "test@example.com", MimeType: "application/xml", Data: []byte("<test/>")},
 	}
@@ -225,7 +225,7 @@ func TestEncryptedKeyParsing(t *testing.T) {
 	doc := etree.NewDocument()
 	security := doc.CreateElement("wsse:Security")
 	security.CreateAttr("xmlns:wsse", NSSecurityExt)
-	
+
 	err = AddEncryptedKeyToSecurityHeader(security, result.EncryptedKey)
 	if err != nil {
 		t.Fatalf("Failed to add EncryptedKey: %v", err)
@@ -262,7 +262,7 @@ func TestEncryptedKeyParsing(t *testing.T) {
 
 func TestCreateEncryptedDataElement(t *testing.T) {
 	elem := CreateEncryptedDataElement("ED-123", "application/xml", "cid:attachment@example.com")
-	
+
 	if elem == nil {
 		t.Fatal("CreateEncryptedDataElement returned nil")
 	}
@@ -334,7 +334,7 @@ func TestIsMessageEncrypted(t *testing.T) {
 func TestEmptyPayloadsError(t *testing.T) {
 	recipientPrivate, _ := xmlenc.GenerateX25519KeyPair()
 	encryptor := NewWSSEncryptor(recipientPrivate.PublicKey(), nil)
-	
+
 	_, err := encryptor.EncryptPayloads([]PayloadData{})
 	if err == nil {
 		t.Error("Expected error for empty payloads")

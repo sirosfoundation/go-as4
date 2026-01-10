@@ -1,0 +1,23 @@
+#!/bin/bash
+# Pre-push hook for go-as4
+# Install: ln -sf ../../scripts/pre-push .git/hooks/pre-push
+
+set -e
+
+echo "Running pre-push checks..."
+
+# Run tests
+echo "Running tests..."
+go test -race -short ./pkg/... || {
+    echo "ERROR: Tests failed"
+    exit 1
+}
+
+# Run build
+echo "Building..."
+go build ./... || {
+    echo "ERROR: Build failed"
+    exit 1
+}
+
+echo "Pre-push checks passed!"

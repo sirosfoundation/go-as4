@@ -1,5 +1,22 @@
 # go-as4
 
+<div align="center">
+
+[![Go Reference](https://pkg.go.dev/badge/github.com/sirosfoundation/go-as4.svg)](https://pkg.go.dev/github.com/sirosfoundation/go-as4)
+[![CI](https://github.com/sirosfoundation/go-as4/actions/workflows/ci.yml/badge.svg)](https://github.com/sirosfoundation/go-as4/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/sirosfoundation/go-as4)](https://goreportcard.com/report/github.com/sirosfoundation/go-as4)
+[![codecov](https://codecov.io/gh/sirosfoundation/go-as4/branch/main/graph/badge.svg)](https://codecov.io/gh/sirosfoundation/go-as4)
+[![Coverage](https://raw.githubusercontent.com/sirosfoundation/go-as4/badges/.badges/main/coverage.svg)](https://github.com/sirosfoundation/go-as4/actions/workflows/ci.yml)
+[![Go Version](https://raw.githubusercontent.com/sirosfoundation/go-as4/badges/.badges/main/golang.svg)](https://go.dev/)
+[![License](https://img.shields.io/badge/License-BSD_2--Clause-blue.svg)](https://opensource.org/licenses/BSD-2-Clause)
+
+[![CodeQL](https://github.com/sirosfoundation/go-as4/actions/workflows/codeql.yml/badge.svg)](https://github.com/sirosfoundation/go-as4/actions/workflows/codeql.yml)
+[![Latest Release](https://img.shields.io/github/v/release/sirosfoundation/go-as4?include_prereleases)](https://github.com/sirosfoundation/go-as4/releases)
+[![Issues](https://img.shields.io/github/issues/sirosfoundation/go-as4)](https://github.com/sirosfoundation/go-as4/issues)
+[![Last Commit](https://img.shields.io/github/last-commit/sirosfoundation/go-as4)](https://github.com/sirosfoundation/go-as4/commits/main)
+
+</div>
+
 A Go library implementing the eDelivery AS4 2.0 specification for secure, reliable B2B messaging.
 
 ## Overview
@@ -129,6 +146,14 @@ This library implements:
 ## Development
 
 ```bash
+# Install git hooks (recommended)
+./scripts/install-hooks.sh
+
+# Or use pre-commit framework
+pip install pre-commit
+pre-commit install
+pre-commit install --hook-type pre-push
+
 # Run tests
 make test
 
@@ -140,7 +165,21 @@ make interop-test
 
 # Check coverage
 make coverage
+
+# Run linting
+go vet ./...
+golangci-lint run
 ```
+
+## Contributing
+
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
+
+Before submitting a PR:
+1. Install git hooks: `./scripts/install-hooks.sh`
+2. Ensure tests pass: `go test -race ./pkg/...`
+3. Check formatting: `gofmt -s -l .`
+4. Run linting: `go vet ./...`
 
 ## License
 

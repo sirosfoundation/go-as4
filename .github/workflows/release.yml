@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.x'
+    
+    - name: Run tests
+      run: go test -v -race ./pkg/...
+    
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Get the previous tag
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        
+        if [ -z "$PREV_TAG" ]; then
+          echo "First release - no previous tag found"
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "Initial release of go-as4" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "## Features" >> $GITHUB_OUTPUT
+          echo "- Full AS4 2.0 message handling" >> $GITHUB_OUTPUT
+          echo "- WS-Security 1.1.1 signing and encryption" >> $GITHUB_OUTPUT
+          echo "- Interoperability with phase4 and Domibus" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        else
+          echo "Generating changelog from $PREV_TAG to HEAD"
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          git log ${PREV_TAG}..HEAD --pretty=format:"- %s" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        body: |
+          ## Changes
+          ${{ steps.changelog.outputs.CHANGELOG }}
+          
+          ## Installation
+          ```bash
+          go get github.com/sirosfoundation/go-as4@${{ github.ref_name }}
+          ```
+        draft: false
+        prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

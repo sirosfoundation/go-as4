@@ -1,0 +1,212 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.23.x', '1.24.x']
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+    
+    - name: Download dependencies
+      run: go mod download
+    
+    - name: Verify dependencies
+      run: go mod verify
+    
+    - name: Run tests
+      run: go test -v -race -coverprofile=coverage.out ./pkg/...
+    
+    - name: Check coverage threshold
+      run: |
+        go tool cover -func=coverage.out
+        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+        echo "Total coverage: ${COVERAGE}%"
+        # Ensure coverage is above 50%
+        if (( $(echo "$COVERAGE < 50" | bc -l) )); then
+          echo "Coverage ${COVERAGE}% is below 50% threshold"
+          exit 1
+        fi
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      if: matrix.go-version == '1.24.x'
+      with:
+        files: ./coverage.out
+        flags: unittests
+        name: codecov-go-as4
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+    - name: Generate coverage badge
+      if: github.ref == 'refs/heads/main' && matrix.go-version == '1.24.x'
+      run: |
+        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+        echo "Coverage: ${COVERAGE}%"
+
+        mkdir -p .badges/main
+        if (( $(echo "$COVERAGE >= 80" | bc -l) )); then
+          COLOR="brightgreen"
+        elif (( $(echo "$COVERAGE >= 70" | bc -l) )); then
+          COLOR="green"
+        elif (( $(echo "$COVERAGE >= 60" | bc -l) )); then
+          COLOR="yellowgreen"
+        elif (( $(echo "$COVERAGE >= 50" | bc -l) )); then
+          COLOR="yellow"
+        elif (( $(echo "$COVERAGE >= 40" | bc -l) )); then
+          COLOR="orange"
+        else
+          COLOR="red"
+        fi
+
+        curl -s "https://img.shields.io/badge/coverage-${COVERAGE}%25-${COLOR}.svg" > .badges/main/coverage.svg
+        echo "Generated coverage badge: ${COVERAGE}% (${COLOR})"
+
+    - name: Get Go version for badge
+      id: go-version-badge
+      if: github.ref == 'refs/heads/main' && matrix.go-version == '1.24.x'
+      run: |
+        GO_VERSION=$(go list -m -f '{{.GoVersion}}')
+        echo "GO_VERSION=${GO_VERSION}" >> $GITHUB_ENV
+        echo "GO_VERSION=${GO_VERSION}" >> $GITHUB_OUTPUT
+
+    - name: Generate Go version badge
+      if: github.ref == 'refs/heads/main' && matrix.go-version == '1.24.x'
+      run: |
+        mkdir -p .badges/main
+        cat > .badges/main/golang.svg << EOF
+        <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="86" height="20" role="img" aria-label="golang: ${{ env.GO_VERSION }}"><title>golang: ${{ env.GO_VERSION }}</title><linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient><clipPath id="r"><rect width="86" height="20" rx="3" fill="#fff"/></clipPath><g clip-path="url(#r)"><rect width="49" height="20" fill="#555"/><rect x="49" width="37" height="20" fill="#007ec6"/><rect width="86" height="20" fill="url(#s)"/></g><g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110"><text aria-hidden="true" x="255" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="390">golang</text><text x="255" y="140" transform="scale(.1)" fill="#fff" textLength="390">golang</text><text aria-hidden="true" x="665" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="270">${{ env.GO_VERSION }}</text><text x="665" y="140" transform="scale(.1)" fill="#fff" textLength="270">${{ env.GO_VERSION }}</text></g></svg>
+        EOF
+
+    - name: Commit badges to badges branch
+      if: github.ref == 'refs/heads/main' && matrix.go-version == '1.24.x'
+      run: |
+        if [ ! -f .badges/main/coverage.svg ]; then
+          echo "No badges to commit"
+          exit 0
+        fi
+
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+
+        mkdir -p /tmp/badges
+        cp -v .badges/main/*.svg /tmp/badges/
+
+        git checkout -- .
+        git clean -fd
+
+        git fetch origin badges 2>/dev/null || true
+        git checkout -B badges origin/badges 2>/dev/null || git checkout -b badges
+
+        mkdir -p .badges/main
+        cp -v /tmp/badges/*.svg .badges/main/
+
+        git add -f .badges/main/*.svg
+        git commit -m "chore: Update badges [skip ci]" || echo "Nothing to commit"
+        git push origin badges || echo "Could not push badges"
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.x'
+    
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: v1.62.2
+        args: --timeout=5m
+
+  format:
+    name: Format Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.x'
+    
+    - name: Check formatting
+      run: |
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "The following files are not formatted:"
+          gofmt -s -l .
+          exit 1
+        fi
+    
+    - name: Verify go.mod is tidy
+      run: |
+        go mod tidy
+        git diff --exit-code go.mod go.sum
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.x'
+    
+    - name: Build all packages
+      run: go build -v ./...
+    
+    - name: Build examples
+      run: |
+        for example_dir in examples/*/; do
+          if [ -d "$example_dir" ] && ls "$example_dir"/*.go >/dev/null 2>&1; then
+            echo "Building $example_dir"
+            (cd "$example_dir" && go build -v .)
+          fi
+        done
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.x'
+    
+    - name: Run govulncheck
+      run: |
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+        govulncheck ./...

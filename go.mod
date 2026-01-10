@@ -10,7 +10,6 @@ require (
 require (
 	github.com/beevik/etree v1.6.0
 	github.com/leifj/signedxml v1.2.3-leifj5
-	github.com/russellhaering/goxmldsig v1.5.0
 	github.com/sirosfoundation/go-trust v0.0.0-20260108214437-2745da0592da
 )
 
@@ -46,6 +45,7 @@ require (
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.54.0 // indirect
+	github.com/russellhaering/goxmldsig v1.5.0 // indirect
 	github.com/sirosfoundation/g119612 v0.0.0-20260108094825-5b3123230280 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/thales-e-security/pool v0.0.2 // indirect

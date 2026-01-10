@@ -41,9 +41,9 @@ type DecryptionResult struct {
 
 // DecryptedPayload represents a decrypted MIME payload
 type DecryptedPayload struct {
-	ContentID     string // Original Content-ID
-	Data          []byte // Decrypted content
-	OriginalMime  string // Original MIME type (from PartProperties)
+	ContentID    string // Original Content-ID
+	Data         []byte // Decrypted content
+	OriginalMime string // Original MIME type (from PartProperties)
 }
 
 // ExtractEncryptedKey extracts the xenc:EncryptedKey element from a WS-Security header.
