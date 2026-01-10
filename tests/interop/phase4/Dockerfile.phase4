@@ -1,0 +1,34 @@
+# Phase4 server for AS4 interoperability testing
+FROM maven:3.9-eclipse-temurin-21 AS builder
+
+WORKDIR /build
+
+# Copy phase4 source - assuming it's available at build context
+# For testing, we'll use a simple standalone server setup
+COPY phase4-config/pom.xml ./pom.xml
+
+# Download dependencies
+RUN mvn dependency:resolve
+
+# Copy source
+COPY phase4-config/src ./src
+
+# Build
+RUN mvn package -DskipTests
+
+# Runtime image
+FROM eclipse-temurin:21-jre-alpine
+
+WORKDIR /app
+
+# Copy built artifact
+COPY --from=builder /build/target/*.jar ./app.jar
+
+# Copy certificates
+COPY certs/ ./certs/
+
+# Expose AS4 endpoint
+EXPOSE 8080
+
+# Run phase4 server
+ENTRYPOINT ["java", "-jar", "app.jar"]

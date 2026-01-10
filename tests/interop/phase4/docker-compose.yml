@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # phase4 server for interoperability testing
+  phase4:
+    build:
+      context: .
+      dockerfile: Dockerfile.phase4
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./config:/app/config:ro
+    environment:
+      - JAVA_OPTS=-Xmx512m
+      - AS4_CONFIG=/app/config/as4-config.properties
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/as4"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - as4-network
+
+  # go-as4 server for bidirectional testing
+  go-as4:
+    build:
+      context: ../../..
+      dockerfile: tests/interop/phase4/Dockerfile.go-as4
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./certs:/app/certs:ro
+    environment:
+      - GO_SERVER_ADDR=:9090
+      - PHASE4_URL=http://phase4:8080/as4
+    depends_on:
+      phase4:
+        condition: service_healthy
+    networks:
+      - as4-network
+
+  # Test runner
+  test-runner:
+    build:
+      context: ../../..
+      dockerfile: tests/interop/phase4/Dockerfile.go-as4
+    command: ["./interop-test", "-mode=client", "-phase4-url=http://phase4:8080/as4", "-verbose"]
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./results:/app/results
+    depends_on:
+      phase4:
+        condition: service_healthy
+    networks:
+      - as4-network
+
+networks:
+  as4-network:
+    driver: bridge

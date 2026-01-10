@@ -1,0 +1,33 @@
+# go-as4 interoperability test runner
+FROM golang:1.24-alpine AS builder
+
+RUN apk add --no-cache git make
+
+WORKDIR /build
+
+# Copy go.mod first for caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source
+COPY . .
+
+# Build interop test
+WORKDIR /build/tests/interop/phase4
+RUN go build -o /interop-test ./main.go
+
+# Runtime image
+FROM alpine:3.19
+
+RUN apk add --no-cache ca-certificates curl
+
+WORKDIR /app
+
+# Copy binary
+COPY --from=builder /interop-test ./interop-test
+
+# Copy certificates
+COPY tests/interop/phase4/certs/ ./certs/
+
+# Default command
+CMD ["./interop-test", "-mode=all"]
