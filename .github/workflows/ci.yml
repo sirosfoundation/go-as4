@@ -48,7 +48,7 @@ jobs:
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
-      if: matrix.go-version == '1.24.x'
+      if: matrix.go-version == '1.23.x'
       with:
         files: ./coverage.out
         flags: unittests
@@ -57,7 +57,7 @@ jobs:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
     - name: Generate coverage badge
-      if: github.ref == 'refs/heads/main' && matrix.go-version == '1.24.x'
+      if: github.ref == 'refs/heads/main' && matrix.go-version == '1.23.x'
       run: |
         COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
         echo "Coverage: ${COVERAGE}%"
@@ -82,14 +82,14 @@ jobs:
 
     - name: Get Go version for badge
       id: go-version-badge
-      if: github.ref == 'refs/heads/main' && matrix.go-version == '1.24.x'
+      if: github.ref == 'refs/heads/main' && matrix.go-version == '1.23.x'
       run: |
         GO_VERSION=$(go list -m -f '{{.GoVersion}}')
         echo "GO_VERSION=${GO_VERSION}" >> $GITHUB_ENV
         echo "GO_VERSION=${GO_VERSION}" >> $GITHUB_OUTPUT
 
     - name: Generate Go version badge
-      if: github.ref == 'refs/heads/main' && matrix.go-version == '1.24.x'
+      if: github.ref == 'refs/heads/main' && matrix.go-version == '1.23.x'
       run: |
         mkdir -p .badges/main
         cat > .badges/main/golang.svg << EOF
@@ -97,7 +97,7 @@ jobs:
         EOF
 
     - name: Commit badges to badges branch
-      if: github.ref == 'refs/heads/main' && matrix.go-version == '1.24.x'
+      if: github.ref == 'refs/heads/main' && matrix.go-version == '1.23.x'
       run: |
         if [ ! -f .badges/main/coverage.svg ]; then
           echo "No badges to commit"

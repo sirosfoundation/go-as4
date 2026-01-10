@@ -9,7 +9,7 @@ require (
 
 require (
 	github.com/beevik/etree v1.6.0
-	github.com/leifj/signedxml v1.2.3-leifj5
+	github.com/leifj/signedxml v1.2.3-leifj6
 	github.com/sirosfoundation/go-trust v0.0.0-20260108214437-2745da0592da
 )
 
