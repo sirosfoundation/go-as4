@@ -56,6 +56,8 @@ github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
 github.com/kr/text v0.2.0/go.mod h1:eLer722TekiGuMkidMxC/pM04lWEeraHUUmBw8l2grE=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
+github.com/leifj/signedxml v1.2.3-leifj5 h1:+J9RlZJ/U0P4RHJOjSyuTYuLs3o5th5A2PsP8M2pmgw=
+github.com/leifj/signedxml v1.2.3-leifj5/go.mod h1:wx5lx2hisoBUQGL/VyBBX/xEQMOWIc8pE9oIabA5OmM=
 github.com/leodido/go-urn v1.4.0 h1:WT9HwE9SGECu3lg4d/dIA+jxlljEa1/ffXKmRjqdmIQ=
 github.com/leodido/go-urn v1.4.0/go.mod h1:bvxc+MVxLKB4z00jd1z+Dvzr47oO32F/QSNjSBOlFxI=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
@@ -89,6 +91,8 @@ github.com/quic-go/quic-go v0.54.0 h1:6s1YB9QotYI6Ospeiguknbp2Znb/jZYjZLRXn9kMQB
 github.com/quic-go/quic-go v0.54.0/go.mod h1:e68ZEaCdyviluZmy44P6Iey98v/Wfz6HCjQEm+l8zTY=
 github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=
 github.com/rogpeppe/go-internal v1.10.0/go.mod h1:UQnix2H7Ngw/k4C5ijL5+65zddjncjaFoBhdsK/akog=
+github.com/russellhaering/goxmldsig v1.5.0 h1:AU2UkkYIUOTyZRbe08XMThaOCelArgvNfYapcmSjBNw=
+github.com/russellhaering/goxmldsig v1.5.0/go.mod h1:x98CjQNFJcWfMxeOrMnMKg70lvDP6tE0nTaeUnjXDmk=
 github.com/sirosfoundation/g119612 v0.0.0-20260108094825-5b3123230280 h1:9xXylH++9mXY/JYsftp7Es7DBwSNN2UkJfmqwHk7t/0=
 github.com/sirosfoundation/g119612 v0.0.0-20260108094825-5b3123230280/go.mod h1:x2q0DHfpzuOO64X9gqdt2HlfzysiXm+gMlCk28Ou/Jk=
 github.com/sirosfoundation/go-trust v0.0.0-20260108214437-2745da0592da h1:NCHvRW8JK2mt+jIgFK3+xuKxxT2u3kXkXDYFXOoqI2c=

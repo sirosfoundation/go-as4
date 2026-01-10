@@ -70,7 +70,3 @@ require (
 	github.com/stretchr/testify v1.11.1
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/russellhaering/goxmldsig => ../../goxmldsig
-
-replace github.com/leifj/signedxml => ../../signedxml
