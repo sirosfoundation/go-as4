@@ -11,6 +11,7 @@ import (
 
 	"github.com/sirosfoundation/go-trust/pkg/authzen"
 	"github.com/sirosfoundation/go-trust/pkg/authzenclient"
+	"github.com/sirosfoundation/go-trust/pkg/trustapi"
 )
 
 var (
@@ -255,4 +256,213 @@ func (v *AuthZENTrustValidator) ValidateCertificateChain(chain []*x509.Certifica
 		return fmt.Errorf("%w: empty chain", ErrInvalidCertificate)
 	}
 	return v.ValidateCertificate(chain[0], chain[1:], purpose)
+}
+
+// TrustAPIEvaluator implements trustapi.TrustEvaluator for AS4 certificate validation.
+// This provides a standard interface for trust evaluation that can be used with
+// the go-trust trustapi package, enabling compatibility with other components
+// that use the trustapi interfaces.
+type TrustAPIEvaluator struct {
+	client        *authzenclient.Client
+	defaultAction string
+}
+
+// NewTrustAPIEvaluator creates a new TrustAPIEvaluator using the AuthZEN client.
+// The pdpEndpoint should be the base URL of the PDP.
+func NewTrustAPIEvaluator(pdpEndpoint string) *TrustAPIEvaluator {
+	return &TrustAPIEvaluator{
+		client:        authzenclient.New(pdpEndpoint),
+		defaultAction: "as4-signing",
+	}
+}
+
+// NewTrustAPIEvaluatorWithClient creates a TrustAPIEvaluator with an existing client.
+func NewTrustAPIEvaluatorWithClient(client *authzenclient.Client) *TrustAPIEvaluator {
+	return &TrustAPIEvaluator{
+		client:        client,
+		defaultAction: "as4-signing",
+	}
+}
+
+// WithDefaultAction sets the default action for trust evaluation.
+func (e *TrustAPIEvaluator) WithDefaultAction(action string) *TrustAPIEvaluator {
+	e.defaultAction = action
+	return e
+}
+
+// Evaluate checks if the given key is trusted for the specified subject and role.
+// Implements trustapi.TrustEvaluator.
+func (e *TrustAPIEvaluator) Evaluate(ctx context.Context, req *trustapi.EvaluationRequest) (*trustapi.TrustDecision, error) {
+	if req == nil {
+		return nil, errors.New("evaluation request is nil")
+	}
+
+	// Determine action name
+	actionName := string(req.Role)
+	if req.Action != "" {
+		actionName = req.Action
+	}
+	if actionName == "" {
+		actionName = e.defaultAction
+	}
+
+	var request *authzen.EvaluationRequest
+
+	switch req.KeyType {
+	case trustapi.KeyTypeX5C:
+		// Handle X.509 certificate chain
+		chain, ok := req.Key.([]*x509.Certificate)
+		if !ok {
+			return nil, errors.New("key is not a certificate chain")
+		}
+		if len(chain) == 0 {
+			return nil, errors.New("certificate chain is empty")
+		}
+
+		// Build x5c array
+		x5c := make([]interface{}, len(chain))
+		for i, cert := range chain {
+			x5c[i] = base64.StdEncoding.EncodeToString(cert.Raw)
+		}
+
+		request = &authzen.EvaluationRequest{
+			Subject: authzen.Subject{
+				Type: "key",
+				ID:   req.SubjectID,
+			},
+			Resource: authzen.Resource{
+				Type: "x5c",
+				ID:   req.SubjectID,
+				Key:  x5c,
+			},
+		}
+
+	case trustapi.KeyTypeJWK:
+		// Handle JWK
+		jwk, ok := req.Key.(map[string]any)
+		if !ok {
+			return nil, errors.New("key is not a JWK map")
+		}
+
+		request = &authzen.EvaluationRequest{
+			Subject: authzen.Subject{
+				Type: "key",
+				ID:   req.SubjectID,
+			},
+			Resource: authzen.Resource{
+				Type: "jwk",
+				ID:   req.SubjectID,
+				Key:  []interface{}{jwk},
+			},
+		}
+
+	default:
+		return nil, fmt.Errorf("unsupported key type: %s", req.KeyType)
+	}
+
+	if actionName != "" {
+		request.Action = &authzen.Action{Name: actionName}
+	}
+
+	// Send to PDP
+	response, err := e.client.Evaluate(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("AuthZEN evaluation failed: %w", err)
+	}
+
+	decision := &trustapi.TrustDecision{
+		Trusted:        response.Decision,
+		TrustFramework: "authzen",
+	}
+
+	if response.Context != nil && response.Context.Reason != nil {
+		decision.Reason = fmt.Sprintf("%v", response.Context.Reason)
+	}
+
+	return decision, nil
+}
+
+// SupportsKeyType returns true if this evaluator can handle the given key type.
+// Implements trustapi.TrustEvaluator.
+func (e *TrustAPIEvaluator) SupportsKeyType(kt trustapi.KeyType) bool {
+	return kt == trustapi.KeyTypeX5C || kt == trustapi.KeyTypeJWK
+}
+
+// Name returns a human-readable name for this evaluator.
+// Implements trustapi.TrustEvaluator.
+func (e *TrustAPIEvaluator) Name() string {
+	return "AS4-TrustAPI-Evaluator"
+}
+
+// Healthy returns true if the evaluator is operational.
+// Implements trustapi.TrustEvaluator.
+func (e *TrustAPIEvaluator) Healthy() bool {
+	// Simple health check - could be extended to ping the PDP
+	return e.client != nil
+}
+
+// AsTrustEvaluator returns this evaluator as a trustapi.TrustEvaluator.
+// This is a convenience method for explicit type conversion.
+func (e *TrustAPIEvaluator) AsTrustEvaluator() trustapi.TrustEvaluator {
+	return e
+}
+
+// ValidateCertificate validates a certificate using the trustapi interface.
+// This is a convenience wrapper that converts the certificate to an EvaluationRequest.
+func (e *TrustAPIEvaluator) ValidateCertificate(cert *x509.Certificate, chain []*x509.Certificate, purpose string) error {
+	if cert == nil {
+		return fmt.Errorf("%w: nil certificate", ErrInvalidCertificate)
+	}
+
+	// Extract subject name
+	subjectName := cert.Subject.CommonName
+	if subjectName == "" && len(cert.DNSNames) > 0 {
+		subjectName = cert.DNSNames[0]
+	}
+	if subjectName == "" && len(cert.EmailAddresses) > 0 {
+		subjectName = cert.EmailAddresses[0]
+	}
+	if subjectName == "" && len(cert.URIs) > 0 {
+		subjectName = cert.URIs[0].String()
+	}
+	if subjectName == "" {
+		return fmt.Errorf("%w: certificate has no identifiable subject name", ErrInvalidCertificate)
+	}
+
+	// Build full chain
+	fullChain := make([]*x509.Certificate, 0, 1+len(chain))
+	fullChain = append(fullChain, cert)
+	fullChain = append(fullChain, chain...)
+
+	req := &trustapi.EvaluationRequest{
+		SubjectID: subjectName,
+		KeyType:   trustapi.KeyTypeX5C,
+		Key:       fullChain,
+		Action:    purpose,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	decision, err := e.Evaluate(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if !decision.Trusted {
+		if decision.Reason != "" {
+			return fmt.Errorf("%w: %s", ErrCertificateUntrusted, decision.Reason)
+		}
+		return ErrCertificateUntrusted
+	}
+
+	return nil
+}
+
+// ValidateCertificateChain validates a certificate chain using the trustapi interface.
+func (e *TrustAPIEvaluator) ValidateCertificateChain(chain []*x509.Certificate, purpose string) error {
+	if len(chain) == 0 {
+		return fmt.Errorf("%w: empty chain", ErrInvalidCertificate)
+	}
+	return e.ValidateCertificate(chain[0], chain[1:], purpose)
 }

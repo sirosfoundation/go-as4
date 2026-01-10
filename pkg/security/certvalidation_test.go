@@ -205,3 +205,130 @@ func TestDefaultCertificateValidator_NotYetValid(t *testing.T) {
 		t.Errorf("Expected ErrCertificateNotYetValid, got: %v", err)
 	}
 }
+
+// Tests for TrustAPIEvaluator
+
+func TestTrustAPIEvaluator_Interface(t *testing.T) {
+	srv := testserver.New(testserver.WithAcceptAll())
+	defer srv.Close()
+
+	client := authzenclient.New(srv.URL())
+	evaluator := NewTrustAPIEvaluatorWithClient(client)
+
+	// Verify it implements trustapi.TrustEvaluator
+	_ = evaluator.AsTrustEvaluator()
+
+	// Test Name()
+	if evaluator.Name() != "AS4-TrustAPI-Evaluator" {
+		t.Errorf("Expected name 'AS4-TrustAPI-Evaluator', got %s", evaluator.Name())
+	}
+
+	// Test Healthy()
+	if !evaluator.Healthy() {
+		t.Error("Expected Healthy() to return true")
+	}
+
+	// Test SupportsKeyType()
+	if !evaluator.SupportsKeyType("x5c") {
+		t.Error("Expected SupportsKeyType(x5c) to return true")
+	}
+	if !evaluator.SupportsKeyType("jwk") {
+		t.Error("Expected SupportsKeyType(jwk) to return true")
+	}
+	if evaluator.SupportsKeyType("unknown") {
+		t.Error("Expected SupportsKeyType(unknown) to return false")
+	}
+}
+
+func TestTrustAPIEvaluator_AcceptAll(t *testing.T) {
+	srv := testserver.New(testserver.WithAcceptAll())
+	defer srv.Close()
+
+	client := authzenclient.New(srv.URL())
+	evaluator := NewTrustAPIEvaluatorWithClient(client)
+
+	cert, err := generateTestCertificate("test.example.com")
+	if err != nil {
+		t.Fatalf("Failed to generate test certificate: %v", err)
+	}
+
+	// Test ValidateCertificate
+	err = evaluator.ValidateCertificate(cert, nil, "signing")
+	if err != nil {
+		t.Errorf("Expected validation to succeed, got: %v", err)
+	}
+}
+
+func TestTrustAPIEvaluator_RejectAll(t *testing.T) {
+	srv := testserver.New(testserver.WithRejectAll())
+	defer srv.Close()
+
+	client := authzenclient.New(srv.URL())
+	evaluator := NewTrustAPIEvaluatorWithClient(client)
+
+	cert, err := generateTestCertificate("untrusted.example.com")
+	if err != nil {
+		t.Fatalf("Failed to generate test certificate: %v", err)
+	}
+
+	err = evaluator.ValidateCertificate(cert, nil, "signing")
+	if err == nil {
+		t.Error("Expected validation to fail, but it succeeded")
+	}
+}
+
+func TestTrustAPIEvaluator_ValidateCertificateChain(t *testing.T) {
+	srv := testserver.New(testserver.WithAcceptAll())
+	defer srv.Close()
+
+	client := authzenclient.New(srv.URL())
+	evaluator := NewTrustAPIEvaluatorWithClient(client)
+
+	cert, err := generateTestCertificate("chain.example.com")
+	if err != nil {
+		t.Fatalf("Failed to generate test certificate: %v", err)
+	}
+
+	chain := []*x509.Certificate{cert}
+	err = evaluator.ValidateCertificateChain(chain, "signing")
+	if err != nil {
+		t.Errorf("Expected chain validation to succeed, got: %v", err)
+	}
+
+	// Test empty chain
+	err = evaluator.ValidateCertificateChain(nil, "signing")
+	if err == nil {
+		t.Error("Expected error for empty chain")
+	}
+}
+
+func TestTrustAPIEvaluator_NilCertificate(t *testing.T) {
+	srv := testserver.New(testserver.WithAcceptAll())
+	defer srv.Close()
+
+	client := authzenclient.New(srv.URL())
+	evaluator := NewTrustAPIEvaluatorWithClient(client)
+
+	err := evaluator.ValidateCertificate(nil, nil, "")
+	if err == nil {
+		t.Error("Expected error for nil certificate")
+	}
+}
+
+func TestTrustAPIEvaluator_WithDefaultAction(t *testing.T) {
+	srv := testserver.New(testserver.WithAcceptAll())
+	defer srv.Close()
+
+	client := authzenclient.New(srv.URL())
+	evaluator := NewTrustAPIEvaluatorWithClient(client).WithDefaultAction("as4-encryption")
+
+	cert, err := generateTestCertificate("encrypt.example.com")
+	if err != nil {
+		t.Fatalf("Failed to generate test certificate: %v", err)
+	}
+
+	err = evaluator.ValidateCertificate(cert, nil, "")
+	if err != nil {
+		t.Errorf("Expected validation to succeed, got: %v", err)
+	}
+}
