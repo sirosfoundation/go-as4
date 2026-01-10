@@ -1,3 +1,5 @@
+//go:build integration
+
 // Package main implements EU AS4 2.0 TC02/TC03 interoperability tests against phase4.
 //
 // TC02: ENTSOG Sample Message with Single Payload (Signature + Encryption)
@@ -12,6 +14,8 @@
 // Test variants:
 // - *_X25519: EU AS4 2.0 compliant (X25519), skipped for phase4
 // - *_RSAOAEP: Legacy RSA-OAEP encryption, works with phase4
+//
+// Build tag: integration (requires running phase4 server)
 package main
 
 import (
