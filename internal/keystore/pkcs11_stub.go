@@ -1,6 +1,16 @@
-//go:build !pkcs11
+//go:build !cgo || !pkcs11
 
-// Package keystore provides a stub for PKCS#11 when not compiled with the pkcs11 tag.
+// Package keystore provides a stub for PKCS#11 when not compiled with CGO or the pkcs11 tag.
+//
+// PKCS#11 support requires CGO because the underlying miekg/pkcs11 library
+// uses cgo to interface with the PKCS#11 C API.
+//
+// To build with PKCS#11 support:
+//
+//	CGO_ENABLED=1 go build -tags pkcs11 ./...
+//
+// This stub allows the server to build without CGO (static binary) while
+// still supporting file-based and PRF-based key management.
 package keystore
 
 import (
@@ -23,7 +33,7 @@ type PKCS11Config struct {
 
 // ErrPKCS11NotSupported is returned when PKCS#11 operations are attempted
 // but the binary was not compiled with PKCS#11 support.
-var ErrPKCS11NotSupported = errors.New("PKCS#11 support not compiled in (build with -tags pkcs11)")
+var ErrPKCS11NotSupported = errors.New("PKCS#11 support not compiled in (build with CGO_ENABLED=1 -tags pkcs11)")
 
 // NewPKCS11Provider returns an error because PKCS#11 is not compiled in.
 func NewPKCS11Provider(cfg *PKCS11Config) (*PKCS11Provider, error) {

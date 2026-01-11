@@ -34,7 +34,6 @@ import (
 	"bytes"
 	"context"
 	"crypto"
-	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
 	"io"
@@ -50,6 +49,7 @@ import (
 	"github.com/sirosfoundation/go-as4/internal/keystore"
 	"github.com/sirosfoundation/go-as4/internal/storage"
 	"github.com/sirosfoundation/go-as4/pkg/pmode"
+	"github.com/sirosfoundation/go-as4/pkg/security"
 )
 
 // EnvelopeSigner is an interface for signing SOAP envelopes.
@@ -63,6 +63,18 @@ type EnvelopeSigner interface {
 // Implementations can be provided via dependency injection.
 type EnvelopeSignerFactory interface {
 	NewSigner(config *pmode.SignConfig, privateKey crypto.Signer, cert *x509.Certificate) (EnvelopeSigner, error)
+}
+
+// defaultSignerFactory wraps pkg/security.SignerFactory to implement EnvelopeSignerFactory
+type defaultSignerFactory struct{}
+
+func (f *defaultSignerFactory) NewSigner(config *pmode.SignConfig, privateKey crypto.Signer, cert *x509.Certificate) (EnvelopeSigner, error) {
+	factory := &security.SignerFactory{}
+	signer, err := factory.NewSigner(config, privateKey, cert)
+	if err != nil {
+		return nil, err
+	}
+	return signer, nil
 }
 
 // Handler processes AS4 messages for a tenant
@@ -100,7 +112,7 @@ type Config struct {
 	PayloadStore   PayloadStore
 	TenantStore    TenantStore
 	SignerProvider keystore.SignerProvider
-	SignerFactory  EnvelopeSignerFactory // Optional: if nil, uses built-in basic signer
+	SignerFactory  EnvelopeSignerFactory // Optional: if nil, uses pkg/security default
 	Logger         *slog.Logger
 }
 
@@ -110,12 +122,18 @@ func NewHandler(cfg *Config) *Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
+	
+	signerFactory := cfg.SignerFactory
+	if signerFactory == nil {
+		signerFactory = &defaultSignerFactory{}
+	}
+	
 	return &Handler{
 		messageStore:   cfg.MessageStore,
 		payloadStore:   cfg.PayloadStore,
 		tenantStore:    cfg.TenantStore,
 		signerProvider: cfg.SignerProvider,
-		signerFactory:  cfg.SignerFactory,
+		signerFactory:  signerFactory,
 		logger:         logger,
 	}
 }
@@ -479,7 +497,7 @@ func (h *Handler) buildEnvelope(req *SendRequest, messageID string) (*etree.Docu
 	return doc, nil
 }
 
-// signEnvelope signs the SOAP envelope
+// signEnvelope signs the SOAP envelope using the configured signer factory
 func (h *Handler) signEnvelope(envelope *etree.Document, signer keystore.Signer) ([]byte, error) {
 	// Get the envelope as bytes
 	envelopeBytes, err := envelope.WriteToBytes()
@@ -487,36 +505,30 @@ func (h *Handler) signEnvelope(envelope *etree.Document, signer keystore.Signer)
 		return nil, fmt.Errorf("serializing envelope: %w", err)
 	}
 
-	// Get the private key and certificate from the signer
+	// Get the certificate from the signer
 	cert := signer.Certificate()
-	pubKey := signer.Public()
 
-	// If a signer factory was provided, try to use it
-	if h.signerFactory != nil {
-		signConfig := &pmode.SignConfig{
-			Algorithm:      pmode.AlgoRSASHA256,
-			TokenReference: pmode.TokenRefBinarySecurityToken,
-		}
-		envSigner, err := h.signerFactory.NewSigner(signConfig, signer, cert)
-		if err == nil {
-			signedBytes, err := envSigner.SignEnvelope(envelopeBytes)
-			if err == nil {
-				return signedBytes, nil
-			}
-			// Fall through to built-in signer on error
-		}
+	// Configure signing parameters
+	signConfig := &pmode.SignConfig{
+		Algorithm:      pmode.AlgoRSASHA256,
+		TokenReference: pmode.TokenRefBinarySecurityToken,
 	}
 
-	// Use built-in basic signer based on key type
-	switch key := pubKey.(type) {
-	case *rsa.PublicKey:
-		// RSA key - use built-in WS-Security signing
-		return h.signWithCryptoSigner(envelopeBytes, signer)
-	default:
-		// For other key types (Ed25519, etc.), use the wrapper approach
-		_ = key // suppress unused warning
+	// Create envelope signer using the factory
+	envSigner, err := h.signerFactory.NewSigner(signConfig, signer, cert)
+	if err != nil {
+		// Fall back to built-in signer if factory fails
+		h.logger.Warn("signer factory failed, using fallback", "error", err)
 		return h.signWithCryptoSigner(envelopeBytes, signer)
 	}
+
+	// Sign the envelope
+	signedBytes, err := envSigner.SignEnvelope(envelopeBytes)
+	if err != nil {
+		return nil, fmt.Errorf("signing envelope: %w", err)
+	}
+
+	return signedBytes, nil
 }
 
 // signWithCryptoSigner signs using the keystore.Signer's crypto.Signer interface

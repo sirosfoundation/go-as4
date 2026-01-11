@@ -1,6 +1,17 @@
-//go:build pkcs11
+//go:build cgo && pkcs11
 
-// Package keystore provides the PKCS#11 signer implementation
+// Package keystore provides the PKCS#11 signer implementation.
+//
+// PKCS#11 support requires CGO because the underlying miekg/pkcs11 library
+// uses cgo to interface with the PKCS#11 C API. This file is only compiled
+// when both the 'cgo' and 'pkcs11' build tags are set.
+//
+// To build with PKCS#11 support:
+//
+//	go build -tags pkcs11 ./...
+//
+// Without the pkcs11 tag, NewPKCS11Provider returns an error indicating
+// that PKCS#11 support is not compiled in.
 package keystore
 
 import (

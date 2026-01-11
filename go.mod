@@ -2,8 +2,10 @@ module github.com/sirosfoundation/go-as4
 
 go 1.25.1
 
-// Exclude crypto11 to avoid PKCS#11 dependency issues with miekg/pkcs11
-// The signedxml library imports crypto11 but we don't use PKCS#11 signing in the server
+// Exclude newer crypto11 versions that have compatibility issues with miekg/pkcs11.
+// crypto11 v1.2.6 works correctly with miekg/pkcs11 v1.1.1.
+// Note: crypto11 is only used by internal/keystore/pkcs11.go which has build tags
+// (cgo && pkcs11), so it's not compiled without those tags, allowing CGO_ENABLED=0 builds.
 exclude github.com/ThalesGroup/crypto11 v1.4.1
 
 exclude github.com/ThalesGroup/crypto11 v1.6.0
@@ -16,7 +18,7 @@ require (
 require (
 	github.com/ThalesGroup/crypto11 v1.2.6
 	github.com/beevik/etree v1.6.0
-	github.com/leifj/signedxml v1.2.3-leifj6
+	github.com/leifj/signedxml v1.2.3-leifj7
 	github.com/miekg/dns v1.1.70
 	github.com/sirosfoundation/go-trust v0.0.0-20260108214437-2745da0592da
 	go.mongodb.org/mongo-driver v1.17.3
