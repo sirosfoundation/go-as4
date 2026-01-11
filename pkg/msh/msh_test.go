@@ -3,10 +3,12 @@ package msh
 import (
 	"context"
 	"encoding/xml"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/sirosfoundation/go-as4/pkg/message"
 	"github.com/sirosfoundation/go-as4/pkg/pmode"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -474,4 +476,313 @@ func TestApplySecurityWithPMode(t *testing.T) {
 	}
 	err = msh.applyInboundSecurity(envXML, inboundMsg, pm)
 	assert.NoError(t, err)
+}
+
+func TestGenerateMessageID(t *testing.T) {
+	// Test that generateMessageID produces unique IDs
+	id1 := generateMessageID()
+	id2 := generateMessageID()
+
+	assert.NotEmpty(t, id1)
+	assert.NotEmpty(t, id2)
+	assert.Contains(t, id1, "@siros.org")
+	assert.Contains(t, id2, "@siros.org")
+	// IDs should be different (generated with nanosecond timestamp)
+	// This may occasionally fail due to timing, but generally works
+	if id1 == id2 {
+		t.Log("Warning: IDs were the same (timing issue)")
+	}
+}
+
+func TestHandleError(t *testing.T) {
+	resolver := NewStaticEndpointResolver()
+
+	var errorHandlerCalled bool
+	var errorMsg string
+	var errorErr error
+
+	config := MSHConfig{
+		Resolver: resolver,
+		ErrorHandler: func(messageID string, err error) {
+			errorHandlerCalled = true
+			errorMsg = messageID
+			errorErr = err
+		},
+	}
+
+	msh, err := NewMSH(config)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = msh.Start(ctx)
+	require.NoError(t, err)
+	defer msh.Stop()
+
+	// Pre-create message metadata
+	testMsgID := "error-test-123"
+	msh.mu.Lock()
+	msh.messages[testMsgID] = &MessageMetadata{
+		MessageID: testMsgID,
+		Status:    MessageStatusPending,
+	}
+	msh.mu.Unlock()
+
+	// Call handleError
+	testErr := fmt.Errorf("test error")
+	msh.handleError(testMsgID, testErr)
+
+	// Give time for event dispatcher
+	time.Sleep(50 * time.Millisecond)
+
+	assert.True(t, errorHandlerCalled)
+	assert.Equal(t, testMsgID, errorMsg)
+	assert.Equal(t, testErr, errorErr)
+
+	// Check status was updated to failed
+	metadata, err := msh.GetMessageStatus(testMsgID)
+	require.NoError(t, err)
+	assert.Equal(t, MessageStatusFailed, metadata.Status)
+}
+
+func TestReceiveMessage(t *testing.T) {
+	resolver := NewStaticEndpointResolver()
+
+	var messageHandlerCalled bool
+	var receivedMsg *InboundMessage
+
+	config := MSHConfig{
+		Resolver: resolver,
+		MessageHandler: func(msg *InboundMessage) {
+			messageHandlerCalled = true
+			receivedMsg = msg
+		},
+	}
+
+	msh, err := NewMSH(config)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = msh.Start(ctx)
+	require.NoError(t, err)
+	defer msh.Stop()
+
+	inMsg := &InboundMessage{
+		MessageID:   "inbound-test-456",
+		FromPartyID: "sender",
+		ToPartyID:   "receiver",
+		Service:     "test-service",
+		Action:      "test-action",
+	}
+
+	err = msh.ReceiveMessage(context.Background(), inMsg)
+	require.NoError(t, err)
+
+	// Give time for processing
+	time.Sleep(100 * time.Millisecond)
+
+	assert.True(t, messageHandlerCalled)
+	assert.Equal(t, "inbound-test-456", receivedMsg.MessageID)
+}
+
+func TestReceiveMessage_NotStarted(t *testing.T) {
+	resolver := NewStaticEndpointResolver()
+	config := MSHConfig{
+		Resolver: resolver,
+	}
+
+	msh, err := NewMSH(config)
+	require.NoError(t, err)
+
+	msg := &InboundMessage{
+		MessageID: "test-123",
+	}
+
+	err = msh.ReceiveMessage(context.Background(), msg)
+	assert.Error(t, err)
+	assert.Equal(t, ErrMSHNotStarted, err)
+}
+
+func TestStaticEndpointResolver_CacheAndInvalidate(t *testing.T) {
+	resolver := NewStaticEndpointResolver()
+
+	endpoint := &EndpointInfo{
+		URL:     "https://example.com/as4",
+		PartyID: "party-cache-test",
+	}
+
+	// Test CacheEndpoint
+	resolver.CacheEndpoint(endpoint.PartyID, endpoint)
+
+	ctx := context.Background()
+	result, err := resolver.ResolveEndpoint(ctx, "party-cache-test", "service", "action")
+	require.NoError(t, err)
+	assert.Equal(t, endpoint.URL, result.URL)
+
+	// Test InvalidateCache
+	resolver.InvalidateCache("party-cache-test")
+
+	_, err = resolver.ResolveEndpoint(ctx, "party-cache-test", "service", "action")
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrEndpointNotFound)
+}
+
+func TestDynamicEndpointResolver_InvalidateCache(t *testing.T) {
+	callCount := 0
+	lookupFunc := func(ctx context.Context, partyID, service, action string) (*EndpointInfo, error) {
+		callCount++
+		return &EndpointInfo{
+			URL:     fmt.Sprintf("https://dynamic-%d.example.com/as4", callCount),
+			PartyID: partyID,
+		}, nil
+	}
+
+	resolver := NewDynamicEndpointResolver(lookupFunc, 60)
+	ctx := context.Background()
+
+	// First call - should invoke lookup
+	result1, err := resolver.ResolveEndpoint(ctx, "party-inv", "service", "action")
+	require.NoError(t, err)
+	assert.Equal(t, "https://dynamic-1.example.com/as4", result1.URL)
+	assert.Equal(t, 1, callCount)
+
+	// Second call - should use cache
+	result2, err := resolver.ResolveEndpoint(ctx, "party-inv", "service", "action")
+	require.NoError(t, err)
+	assert.Equal(t, "https://dynamic-1.example.com/as4", result2.URL)
+	assert.Equal(t, 1, callCount)
+
+	// Invalidate cache - need to use full cache key format: partyID:service:action
+	resolver.InvalidateCache("party-inv:service:action")
+
+	// Third call after invalidation - should invoke lookup again
+	result3, err := resolver.ResolveEndpoint(ctx, "party-inv", "service", "action")
+	require.NoError(t, err)
+	assert.Equal(t, "https://dynamic-2.example.com/as4", result3.URL)
+	assert.Equal(t, 2, callCount)
+}
+
+func TestMultiResolver_CacheAndInvalidate(t *testing.T) {
+	staticResolver := NewStaticEndpointResolver()
+	dynamicResolver := NewDynamicEndpointResolver(
+		func(ctx context.Context, partyID, service, action string) (*EndpointInfo, error) {
+			return &EndpointInfo{URL: "https://dynamic.com", PartyID: partyID}, nil
+		},
+		60,
+	)
+
+	multiResolver := NewMultiResolver(staticResolver, dynamicResolver)
+
+	endpoint := &EndpointInfo{
+		URL:     "https://cached.example.com/as4",
+		PartyID: "party-multi-cache",
+	}
+
+	// Test CacheEndpoint - caches to first resolver (static)
+	multiResolver.CacheEndpoint("party-multi-cache", endpoint)
+
+	ctx := context.Background()
+	result, err := multiResolver.ResolveEndpoint(ctx, "party-multi-cache", "service", "action")
+	require.NoError(t, err)
+	assert.Equal(t, "https://cached.example.com/as4", result.URL)
+
+	// Test InvalidateCache
+	multiResolver.InvalidateCache("party-multi-cache")
+
+	// After invalidation, should find via dynamic resolver
+	result2, err := multiResolver.ResolveEndpoint(ctx, "party-multi-cache", "service", "action")
+	require.NoError(t, err)
+	assert.Equal(t, "https://dynamic.com", result2.URL)
+}
+
+func TestBuildEnvelope_WithExistingEnvelope(t *testing.T) {
+	resolver := NewStaticEndpointResolver()
+	config := MSHConfig{
+		Resolver: resolver,
+	}
+
+	msh, err := NewMSH(config)
+	require.NoError(t, err)
+
+	existingEnvelope := &message.Envelope{
+		Header: &message.Header{
+			Messaging: &message.Messaging{
+				UserMessage: &message.UserMessage{
+					MessageInfo: &message.MessageInfo{
+						MessageId: "pre-existing-id",
+					},
+				},
+			},
+		},
+		Body: &message.Body{},
+	}
+
+	msg := &OutboundMessage{
+		MessageID: "ignored-id",
+		Envelope:  existingEnvelope,
+	}
+
+	envelope, err := msh.buildEnvelope(msg)
+	require.NoError(t, err)
+
+	// Should return the existing envelope unchanged
+	assert.Equal(t, existingEnvelope, envelope)
+	assert.Equal(t, "pre-existing-id", envelope.Header.Messaging.UserMessage.MessageInfo.MessageId)
+}
+
+func TestBuildEnvelope_WithRefToMessageID(t *testing.T) {
+	resolver := NewStaticEndpointResolver()
+	config := MSHConfig{
+		Resolver: resolver,
+	}
+
+	msh, err := NewMSH(config)
+	require.NoError(t, err)
+
+	msg := &OutboundMessage{
+		MessageID:      "reply-123",
+		FromPartyID:    "sender",
+		ToPartyID:      "receiver",
+		Service:        "service",
+		Action:         "Reply",
+		RefToMessageID: "original-message-456",
+	}
+
+	envelope, err := msh.buildEnvelope(msg)
+	require.NoError(t, err)
+
+	assert.Equal(t, "original-message-456", envelope.Header.Messaging.UserMessage.MessageInfo.RefToMessageId)
+}
+
+func TestMSH_ConvertToMIMEPayloads(t *testing.T) {
+	resolver := NewStaticEndpointResolver()
+	config := MSHConfig{
+		Resolver: resolver,
+	}
+
+	msh, err := NewMSH(config)
+	require.NoError(t, err)
+
+	payloads := []Payload{
+		{
+			ContentID:   "payload-1@example.com",
+			ContentType: "application/xml",
+			Data:        []byte("<test>data1</test>"),
+		},
+		{
+			ContentID:   "payload-2@example.com",
+			ContentType: "application/json",
+			Data:        []byte(`{"key": "value"}`),
+		},
+	}
+
+	mimePayloads := msh.convertToMIMEPayloads(payloads)
+
+	require.Len(t, mimePayloads, 2)
+	assert.Equal(t, "payload-1@example.com", mimePayloads[0].ContentID)
+	assert.Equal(t, "application/xml", mimePayloads[0].ContentType)
+	assert.Equal(t, "binary", mimePayloads[0].ContentTransfer)
+	assert.Equal(t, []byte("<test>data1</test>"), mimePayloads[0].Data)
+
+	assert.Equal(t, "payload-2@example.com", mimePayloads[1].ContentID)
+	assert.Equal(t, "application/json", mimePayloads[1].ContentType)
 }

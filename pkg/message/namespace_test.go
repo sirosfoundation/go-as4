@@ -194,3 +194,214 @@ func TestNamespaceConsistency(t *testing.T) {
 	// Should have NO references to 202X (AS4 v2.0)
 	assert.Equal(t, 0, count202X, "Should have no references to AS4 v2.0 namespace")
 }
+
+// TestAddEbMSPrefix tests the AddEbMSPrefix function
+func TestAddEbMSPrefix(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		contains    []string
+		notContains []string
+	}{
+		{
+			name: "basic messaging element",
+			input: `<Messaging xmlns="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/">
+  <UserMessage>
+    <MessageInfo>
+      <Timestamp>2024-01-01T00:00:00Z</Timestamp>
+      <MessageId>msg-123</MessageId>
+    </MessageInfo>
+  </UserMessage>
+</Messaging>`,
+			contains: []string{
+				`<eb:Messaging xmlns:eb="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/">`,
+				"<eb:UserMessage>",
+				"<eb:MessageInfo>",
+				"<eb:Timestamp>",
+				"<eb:MessageId>",
+				"</eb:MessageInfo>",
+				"</eb:UserMessage>",
+				"</eb:Messaging>",
+			},
+			notContains: []string{
+				"<UserMessage>",
+				"<MessageInfo>",
+			},
+		},
+		{
+			name: "party info elements",
+			input: `<Messaging xmlns="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/">
+  <UserMessage>
+    <PartyInfo>
+      <From>
+        <PartyId>sender</PartyId>
+        <Role>initiator</Role>
+      </From>
+      <To>
+        <PartyId>receiver</PartyId>
+        <Role>responder</Role>
+      </To>
+    </PartyInfo>
+  </UserMessage>
+</Messaging>`,
+			contains: []string{
+				"<eb:PartyInfo>",
+				"<eb:From>",
+				"<eb:To>",
+				"<eb:PartyId>",
+				"<eb:Role>",
+			},
+		},
+		{
+			name: "collaboration info elements",
+			input: `<Messaging xmlns="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/">
+  <UserMessage>
+    <CollaborationInfo>
+      <AgreementRef>agreement</AgreementRef>
+      <Service>service</Service>
+      <Action>action</Action>
+      <ConversationId>conv-123</ConversationId>
+    </CollaborationInfo>
+  </UserMessage>
+</Messaging>`,
+			contains: []string{
+				"<eb:CollaborationInfo>",
+				"<eb:AgreementRef>",
+				"<eb:Service>",
+				"<eb:Action>",
+				"<eb:ConversationId>",
+			},
+		},
+		{
+			name: "payload info elements",
+			input: `<Messaging xmlns="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/">
+  <UserMessage>
+    <PayloadInfo>
+      <PartInfo href="cid:attachment">
+        <PartProperties>
+          <Property name="MimeType">application/xml</Property>
+        </PartProperties>
+      </PartInfo>
+    </PayloadInfo>
+  </UserMessage>
+</Messaging>`,
+			contains: []string{
+				"<eb:PayloadInfo>",
+				"<eb:PartInfo",
+				"<eb:PartProperties>",
+				"<eb:Property",
+			},
+		},
+		{
+			name: "signal message elements",
+			input: `<Messaging xmlns="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/">
+  <SignalMessage>
+    <MessageInfo>
+      <MessageId>signal-123</MessageId>
+      <RefToMessageId>msg-123</RefToMessageId>
+    </MessageInfo>
+    <Receipt>receipt data</Receipt>
+  </SignalMessage>
+</Messaging>`,
+			contains: []string{
+				"<eb:SignalMessage>",
+				"<eb:RefToMessageId>",
+				"<eb:Receipt>",
+			},
+		},
+		{
+			name: "error elements",
+			input: `<Messaging xmlns="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/">
+  <SignalMessage>
+    <Error>
+      <Description>error description</Description>
+      <ErrorDetail>detail</ErrorDetail>
+    </Error>
+  </SignalMessage>
+</Messaging>`,
+			contains: []string{
+				"<eb:Error>",
+				"<eb:Description>",
+				"<eb:ErrorDetail>",
+			},
+		},
+		{
+			name: "message properties",
+			input: `<Messaging xmlns="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/">
+  <UserMessage>
+    <MessageProperties>
+      <Property name="key">value</Property>
+    </MessageProperties>
+  </UserMessage>
+</Messaging>`,
+			contains: []string{
+				"<eb:MessageProperties>",
+				"<eb:Property",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := AddEbMSPrefix([]byte(tt.input))
+			require.NoError(t, err)
+			resultStr := string(result)
+
+			for _, expected := range tt.contains {
+				assert.Contains(t, resultStr, expected, "result should contain %s", expected)
+			}
+
+			for _, notExpected := range tt.notContains {
+				assert.NotContains(t, resultStr, notExpected, "result should NOT contain %s", notExpected)
+			}
+		})
+	}
+}
+
+// TestRemoveDefaultNamespace tests the RemoveDefaultNamespace function
+func TestRemoveDefaultNamespace(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		namespace string
+		prefix    string
+		expected  string
+	}{
+		{
+			name:      "ebms namespace",
+			input:     `<Messaging xmlns="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/">`,
+			namespace: "http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/",
+			prefix:    "eb",
+			expected:  `<Messaging xmlns:eb="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/">`,
+		},
+		{
+			name:      "soap namespace",
+			input:     `<Envelope xmlns="http://www.w3.org/2003/05/soap-envelope">`,
+			namespace: "http://www.w3.org/2003/05/soap-envelope",
+			prefix:    "S",
+			expected:  `<Envelope xmlns:S="http://www.w3.org/2003/05/soap-envelope">`,
+		},
+		{
+			name:      "no matching namespace",
+			input:     `<Element xmlns="http://other.namespace/">`,
+			namespace: "http://different.namespace/",
+			prefix:    "ns",
+			expected:  `<Element xmlns="http://other.namespace/">`,
+		},
+		{
+			name:      "multiple occurrences",
+			input:     `<Root xmlns="http://test.ns/"><Child xmlns="http://test.ns/"/></Root>`,
+			namespace: "http://test.ns/",
+			prefix:    "t",
+			expected:  `<Root xmlns:t="http://test.ns/"><Child xmlns:t="http://test.ns/"/></Root>`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := RemoveDefaultNamespace([]byte(tt.input), tt.namespace, tt.prefix)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, string(result))
+		})
+	}
+}

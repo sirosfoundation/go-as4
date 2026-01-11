@@ -239,3 +239,141 @@ func TestSecurityProcessor_NoSecurity(t *testing.T) {
 	err = secProc.EncryptPayloads(payloads)
 	assert.NoError(t, err, "Should succeed (no-op) when no encryptor")
 }
+
+func TestSecurityProcessor_VerifyEnvelope_NoSigner(t *testing.T) {
+	secProc := NewSecurityProcessor(nil, nil)
+
+	err := secProc.VerifyEnvelope([]byte("<test>xml</test>"))
+	assert.Error(t, err, "Should error when no signer configured")
+	assert.Contains(t, err.Error(), "no signer configured")
+}
+
+func TestSecurityProcessor_HasWSSEncryptor(t *testing.T) {
+	// Without WSS encryptor
+	secProc := NewSecurityProcessor(nil, nil)
+	assert.False(t, secProc.HasWSSEncryptor())
+
+	// With WSS encryptor (via NewSecurityProcessorWithWSS)
+	privKey, err := security.GenerateX25519KeyPair()
+	require.NoError(t, err)
+	recipientPub := privKey.PublicKey()
+
+	secProcWSS := NewSecurityProcessorWithWSS(nil, recipientPub, nil)
+	assert.True(t, secProcWSS.HasWSSEncryptor())
+	assert.False(t, secProcWSS.HasSigner())
+}
+
+func TestSecurityProcessor_NewSecurityProcessorWithWSS(t *testing.T) {
+	privKey, err := security.GenerateX25519KeyPair()
+	require.NoError(t, err)
+	recipientPub := privKey.PublicKey()
+
+	// Test with both encryptor and decryptor
+	secProc := NewSecurityProcessorWithWSS(nil, recipientPub, privKey)
+	require.NotNil(t, secProc)
+	assert.True(t, secProc.HasWSSEncryptor())
+	assert.True(t, secProc.HasEncryptor())
+	assert.False(t, secProc.HasSigner())
+
+	// Test with only decryptor
+	secProcDecrypt := NewSecurityProcessorWithWSS(nil, nil, privKey)
+	require.NotNil(t, secProcDecrypt)
+	assert.False(t, secProcDecrypt.HasWSSEncryptor())
+
+	// Test with only encryptor
+	secProcEncrypt := NewSecurityProcessorWithWSS(nil, recipientPub, nil)
+	require.NotNil(t, secProcEncrypt)
+	assert.True(t, secProcEncrypt.HasWSSEncryptor())
+}
+
+func TestSecurityProcessor_DecryptPayloads_NotEncrypted(t *testing.T) {
+	secProc := NewSecurityProcessor(nil, nil)
+
+	// Payloads without encryption metadata should be skipped
+	payloads := []Payload{
+		{
+			ContentID:   "test1",
+			ContentType: "text/plain",
+			Data:        []byte("not encrypted data"),
+			Properties:  map[string]string{}, // No encryption metadata
+		},
+		{
+			ContentID:   "test2",
+			ContentType: "text/xml",
+			Data:        []byte("<xml>also not encrypted</xml>"),
+			// nil Properties
+		},
+	}
+
+	err := secProc.DecryptPayloads(payloads, [32]byte{})
+	assert.NoError(t, err)
+
+	// Data should be unchanged
+	assert.Equal(t, "not encrypted data", string(payloads[0].Data))
+	assert.Equal(t, "<xml>also not encrypted</xml>", string(payloads[1].Data))
+}
+
+func TestSecurityProcessor_DecryptPayloads_InvalidMetadata(t *testing.T) {
+	secProc := NewSecurityProcessor(nil, nil)
+
+	// Invalid base64 in EphemeralPublicKey
+	payloadsInvalidEphem := []Payload{
+		{
+			ContentID: "test",
+			Data:      []byte("data"),
+			Properties: map[string]string{
+				"EphemeralPublicKey": "not-valid-base64!!!",
+				"Nonce":              "dGVzdG5vbmNl", // valid base64
+			},
+		},
+	}
+
+	err := secProc.DecryptPayloads(payloadsInvalidEphem, [32]byte{})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to decode ephemeral public key")
+
+	// Invalid base64 in Nonce
+	payloadsInvalidNonce := []Payload{
+		{
+			ContentID: "test",
+			Data:      []byte("data"),
+			Properties: map[string]string{
+				"EphemeralPublicKey": "dGVzdGtleQ==", // valid base64
+				"Nonce":              "not-valid-base64!!!",
+			},
+		},
+	}
+
+	err = secProc.DecryptPayloads(payloadsInvalidNonce, [32]byte{})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to decode nonce")
+}
+
+func TestSecurityProcessor_EncryptPayloads_NilProperties(t *testing.T) {
+	// Generate X25519 keys for encryption
+	generator := &security.KeyPairGenerator{}
+	recipientPub, _, err := generator.GenerateX25519KeyPair()
+	require.NoError(t, err)
+
+	encryptor := security.NewAESEncryptor(recipientPub)
+	secProc := NewSecurityProcessor(nil, encryptor)
+
+	// Payload with nil Properties should get initialized
+	payloads := []Payload{
+		{
+			ContentID:   "test",
+			ContentType: "text/plain",
+			Data:        []byte("test data"),
+			Properties:  nil, // nil Properties
+		},
+	}
+
+	err = secProc.EncryptPayloads(payloads)
+	require.NoError(t, err)
+
+	// Properties should be initialized and contain encryption metadata
+	assert.NotNil(t, payloads[0].Properties)
+	assert.NotEmpty(t, payloads[0].Properties["EphemeralPublicKey"])
+	assert.NotEmpty(t, payloads[0].Properties["Nonce"])
+	assert.Equal(t, "AES-128-GCM", payloads[0].Properties["EncryptionAlgorithm"])
+}

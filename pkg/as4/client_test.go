@@ -1,11 +1,17 @@
 package as4
 
 import (
+	"context"
+	"encoding/xml"
 	"testing"
+	"time"
 
+	"github.com/sirosfoundation/go-as4/pkg/message"
 	"github.com/sirosfoundation/go-as4/pkg/pmode"
 	"github.com/sirosfoundation/go-as4/pkg/security"
 	"github.com/sirosfoundation/go-as4/pkg/transport"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewClient_NilConfig(t *testing.T) {
@@ -175,4 +181,255 @@ func TestServerConfig_Fields(t *testing.T) {
 	if config.PModeManager != pmManager {
 		t.Error("PModeManager mismatch")
 	}
+}
+
+func TestServer_HandleMessage_ValidMessage(t *testing.T) {
+	config := &ServerConfig{
+		Address:      ":8443",
+		HTTPSConfig:  transport.DefaultHTTPSConfig(),
+		PModeManager: pmode.NewPModeManager(),
+	}
+
+	server, err := NewServer(config)
+	require.NoError(t, err)
+
+	// Create a valid AS4 envelope
+	envelope := &message.Envelope{
+		Header: &message.Header{
+			Messaging: &message.Messaging{
+				UserMessage: &message.UserMessage{
+					MessageInfo: &message.MessageInfo{
+						MessageId: "test-msg-12345@example.com",
+						Timestamp: time.Now(),
+					},
+					PartyInfo: &message.PartyInfo{
+						From: &message.Party{
+							PartyId: []message.PartyId{{Value: "sender"}},
+							Role:    "Sender",
+						},
+						To: &message.Party{
+							PartyId: []message.PartyId{{Value: "receiver"}},
+							Role:    "Receiver",
+						},
+					},
+					CollaborationInfo: &message.CollaborationInfo{
+						Service:        message.Service{Value: "test-service"},
+						Action:         "test-action",
+						ConversationId: "conv-123",
+					},
+				},
+			},
+		},
+		Body: &message.Body{},
+	}
+
+	messageData, err := xml.Marshal(envelope)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	response, err := server.HandleMessage(ctx, messageData)
+	require.NoError(t, err)
+	assert.NotEmpty(t, response)
+
+	// Parse response and verify it's a receipt
+	var respEnvelope message.Envelope
+	err = xml.Unmarshal(response, &respEnvelope)
+	require.NoError(t, err)
+	assert.NotNil(t, respEnvelope.Header)
+	assert.NotNil(t, respEnvelope.Header.Messaging)
+	assert.NotNil(t, respEnvelope.Header.Messaging.SignalMessage)
+	assert.NotNil(t, respEnvelope.Header.Messaging.SignalMessage.Receipt)
+}
+
+func TestServer_HandleMessage_InvalidXML(t *testing.T) {
+	config := &ServerConfig{
+		Address:      ":8443",
+		HTTPSConfig:  transport.DefaultHTTPSConfig(),
+		PModeManager: pmode.NewPModeManager(),
+	}
+
+	server, err := NewServer(config)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	_, err = server.HandleMessage(ctx, []byte("not valid xml"))
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to parse message")
+}
+
+func TestServer_HandleMessage_MissingMessagingHeader(t *testing.T) {
+	config := &ServerConfig{
+		Address:      ":8443",
+		HTTPSConfig:  transport.DefaultHTTPSConfig(),
+		PModeManager: pmode.NewPModeManager(),
+	}
+
+	server, err := NewServer(config)
+	require.NoError(t, err)
+
+	// Envelope with nil header
+	envelope := &message.Envelope{
+		Header: nil,
+		Body:   &message.Body{},
+	}
+
+	messageData, err := xml.Marshal(envelope)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	_, err = server.HandleMessage(ctx, messageData)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "missing messaging header")
+
+	// Envelope with header but nil messaging
+	envelope2 := &message.Envelope{
+		Header: &message.Header{Messaging: nil},
+		Body:   &message.Body{},
+	}
+
+	messageData2, err := xml.Marshal(envelope2)
+	require.NoError(t, err)
+
+	_, err = server.HandleMessage(ctx, messageData2)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "missing messaging header")
+}
+
+func TestServer_HandleMessage_MissingUserMessage(t *testing.T) {
+	config := &ServerConfig{
+		Address:      ":8443",
+		HTTPSConfig:  transport.DefaultHTTPSConfig(),
+		PModeManager: pmode.NewPModeManager(),
+	}
+
+	server, err := NewServer(config)
+	require.NoError(t, err)
+
+	envelope := &message.Envelope{
+		Header: &message.Header{
+			Messaging: &message.Messaging{
+				UserMessage: nil, // Missing user message
+			},
+		},
+		Body: &message.Body{},
+	}
+
+	messageData, err := xml.Marshal(envelope)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	_, err = server.HandleMessage(ctx, messageData)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "missing user message")
+}
+
+func TestServer_HandleMessage_DuplicateMessage(t *testing.T) {
+	config := &ServerConfig{
+		Address:      ":8443",
+		HTTPSConfig:  transport.DefaultHTTPSConfig(),
+		PModeManager: pmode.NewPModeManager(),
+	}
+
+	server, err := NewServer(config)
+	require.NoError(t, err)
+
+	envelope := &message.Envelope{
+		Header: &message.Header{
+			Messaging: &message.Messaging{
+				UserMessage: &message.UserMessage{
+					MessageInfo: &message.MessageInfo{
+						MessageId: "duplicate-msg-67890@example.com",
+						Timestamp: time.Now(),
+					},
+					PartyInfo: &message.PartyInfo{
+						From: &message.Party{
+							PartyId: []message.PartyId{{Value: "sender"}},
+							Role:    "Sender",
+						},
+						To: &message.Party{
+							PartyId: []message.PartyId{{Value: "receiver"}},
+							Role:    "Receiver",
+						},
+					},
+					CollaborationInfo: &message.CollaborationInfo{
+						Service:        message.Service{Value: "test-service"},
+						Action:         "test-action",
+						ConversationId: "conv-123",
+					},
+				},
+			},
+		},
+		Body: &message.Body{},
+	}
+
+	messageData, err := xml.Marshal(envelope)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// First call should succeed
+	_, err = server.HandleMessage(ctx, messageData)
+	require.NoError(t, err)
+
+	// Second call with same message ID should fail as duplicate
+	_, err = server.HandleMessage(ctx, messageData)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate message")
+}
+
+func TestServer_serializeSignal(t *testing.T) {
+	config := &ServerConfig{
+		Address:      ":8443",
+		HTTPSConfig:  transport.DefaultHTTPSConfig(),
+		PModeManager: pmode.NewPModeManager(),
+	}
+
+	server, err := NewServer(config)
+	require.NoError(t, err)
+
+	// Test serializing a receipt
+	receipt := message.NewReceipt("test-msg-id@example.com", true)
+	response, err := server.serializeSignal(receipt)
+	require.NoError(t, err)
+	assert.NotEmpty(t, response)
+
+	// Verify the response can be parsed back
+	var envelope message.Envelope
+	err = xml.Unmarshal(response, &envelope)
+	require.NoError(t, err)
+	assert.NotNil(t, envelope.Header)
+	assert.NotNil(t, envelope.Header.Messaging)
+	assert.NotNil(t, envelope.Header.Messaging.SignalMessage)
+	assert.NotNil(t, envelope.Header.Messaging.SignalMessage.Receipt)
+}
+
+func TestServer_serializeSignal_Error(t *testing.T) {
+	config := &ServerConfig{
+		Address:      ":8443",
+		HTTPSConfig:  transport.DefaultHTTPSConfig(),
+		PModeManager: pmode.NewPModeManager(),
+	}
+
+	server, err := NewServer(config)
+	require.NoError(t, err)
+
+	// Test serializing an error signal
+	errorSignal := message.NewError(
+		"test-msg-id@example.com",
+		"EBMS:0001",
+		"Error",
+		"Test Error",
+		"This is a test error message",
+	)
+
+	response, err := server.serializeSignal(errorSignal)
+	require.NoError(t, err)
+	assert.NotEmpty(t, response)
+
+	// Verify the response can be parsed back
+	var envelope message.Envelope
+	err = xml.Unmarshal(response, &envelope)
+	require.NoError(t, err)
+	assert.NotNil(t, envelope.Header.Messaging.SignalMessage)
+	assert.NotNil(t, envelope.Header.Messaging.SignalMessage.Error)
 }

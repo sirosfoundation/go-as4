@@ -252,13 +252,13 @@ type smp10SignedServiceMetadata struct {
 					} `xml:"ProcessIdentifier"`
 					ServiceEndpointList struct {
 						Endpoints []struct {
-							TransportProfile       string `xml:"transportProfile,attr"`
-							EndpointURI            string `xml:"EndpointURI"`
-							Certificate            string `xml:"Certificate"`
-							ServiceActivationDate  string `xml:"ServiceActivationDate"`
-							ServiceExpirationDate  string `xml:"ServiceExpirationDate"`
-							TechnicalContactUrl    string `xml:"TechnicalContactUrl"`
-							ServiceDescription     string `xml:"ServiceDescription"`
+							TransportProfile        string `xml:"transportProfile,attr"`
+							EndpointURI             string `xml:"EndpointURI"`
+							Certificate             string `xml:"Certificate"`
+							ServiceActivationDate   string `xml:"ServiceActivationDate"`
+							ServiceExpirationDate   string `xml:"ServiceExpirationDate"`
+							TechnicalContactUrl     string `xml:"TechnicalContactUrl"`
+							ServiceDescription      string `xml:"ServiceDescription"`
 							RequireBusinessLevelSig string `xml:"RequireBusinessLevelSignature"`
 						} `xml:"Endpoint"`
 					} `xml:"ServiceEndpointList"`
