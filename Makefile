@@ -42,7 +42,9 @@ example:
 clean:
 	rm -rf bin/
 	rm -f coverage.out coverage.html
+	rm -f *_coverage.out coverage_*.out *.out
 	rm -f *.test
+	rm -f as4-server
 	go clean -testcache
 
 # Install dependencies

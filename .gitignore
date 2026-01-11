@@ -1,5 +1,6 @@
 # Binaries
 bin/
+as4-server
 *.exe
 *.dll
 *.so
@@ -8,6 +9,9 @@ bin/
 # Test coverage
 coverage.out
 coverage.html
+*_coverage.out
+coverage_*.out
+*.out
 *.test
 
 # Go workspace file
