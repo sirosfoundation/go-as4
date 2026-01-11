@@ -1,0 +1,77 @@
+# Docker Compose for AS4 Server Development/Testing
+#
+# Usage:
+#   docker-compose up -d       # Start all services
+#   docker-compose logs -f as4 # Follow server logs
+#   docker-compose down -v     # Stop and remove volumes
+#
+# Test with:
+#   ./scripts/test-api.sh http://localhost:8080
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: as4-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: as4
+      MONGO_INITDB_ROOT_PASSWORD: as4dev
+      MONGO_INITDB_DATABASE: as4
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  as4:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: as4-server
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      # Override config with environment variables
+      MONGODB_URI: mongodb://as4:as4dev@mongodb:27017/as4?authSource=admin
+      OAUTH2_ISSUER: ${OAUTH2_ISSUER:-https://auth.example.com}
+      OAUTH2_JWKS_URL: ${OAUTH2_JWKS_URL:-https://auth.example.com/.well-known/jwks.json}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./cmd/as4-server/config.example.yaml:/etc/as4/config.yaml:ro
+      - as4_keys:/etc/as4/keys
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Optional: Mongo Express for database inspection
+  mongo-express:
+    image: mongo-express:latest
+    container_name: as4-mongo-express
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: as4
+      ME_CONFIG_MONGODB_ADMINPASSWORD: as4dev
+      ME_CONFIG_MONGODB_URL: mongodb://as4:as4dev@mongodb:27017/
+      ME_CONFIG_BASICAUTH: "false"
+    ports:
+      - "8081:8081"
+    profiles:
+      - tools
+
+volumes:
+  mongodb_data:
+  as4_keys:
