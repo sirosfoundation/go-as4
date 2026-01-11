@@ -118,6 +118,43 @@ docker-test:
 	docker build -f Dockerfile.test -t go-as4:test .
 	docker run --rm go-as4:test
 
+# =============================================================================
+# Local Development Environment
+# =============================================================================
+
+# One-time setup for development: generates keys and starts services
+dev-setup:
+	@echo "Setting up development environment..."
+	@chmod +x ./scripts/generate-dev-keys.sh
+	./scripts/generate-dev-keys.sh test-tenant
+	./scripts/generate-dev-keys.sh demo-tenant
+	@echo ""
+	@echo "Starting services..."
+	docker-compose up -d --build
+	@echo "Waiting for services to be ready..."
+	@sleep 5
+	@echo ""
+	@echo "✓ Development environment ready!"
+	@echo ""
+	@echo "Services:"
+	@echo "  AS4 Server:  http://localhost:8080"
+	@echo "  MongoDB:     mongodb://localhost:27017"
+	@echo ""
+	@echo "Test with dev mode:"
+	@echo "  curl -H 'X-Dev-Tenant: test-tenant' http://localhost:8080/health"
+	@echo ""
+	@echo "Run tests:"
+	@echo "  make test-api"
+
+# Generate development keys for a tenant
+dev-keys:
+	@chmod +x ./scripts/generate-dev-keys.sh
+	@if [ -z "$(TENANT)" ]; then \
+		./scripts/generate-dev-keys.sh test-tenant; \
+	else \
+		./scripts/generate-dev-keys.sh $(TENANT); \
+	fi
+
 # Start local development environment (MongoDB + AS4 server)
 dev-up:
 	@echo "Starting development environment..."
@@ -130,6 +167,13 @@ dev-up:
 	@echo "  MongoDB:       mongodb://localhost:27017"
 	@echo ""
 	@echo "Test with: ./scripts/test-api.sh"
+	@echo "Use header: X-Dev-Tenant: test-tenant"
+
+# Start server locally (without Docker) - requires MongoDB
+dev-local: server
+	@echo "Starting server locally..."
+	@echo "Make sure MongoDB is running at localhost:27017"
+	./bin/as4-server -config cmd/as4-server/config.dev.yaml
 
 # Stop local development environment
 dev-down:
@@ -140,6 +184,7 @@ dev-down:
 dev-clean:
 	@echo "Stopping and cleaning development environment..."
 	docker-compose down -v
+	rm -rf ./keys
 
 # View server logs
 dev-logs:

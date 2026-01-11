@@ -5,8 +5,13 @@
 #   docker-compose logs -f as4 # Follow server logs
 #   docker-compose down -v     # Stop and remove volumes
 #
-# Test with:
-#   ./scripts/test-api.sh http://localhost:8080
+# Quick start for development:
+#   1. Generate dev keys: ./scripts/generate-dev-keys.sh test-tenant
+#   2. Start services: docker-compose up -d
+#   3. Test API: ./scripts/test-api.sh http://localhost:8080
+#
+# Dev mode allows bypassing OAuth2 with X-Dev-Tenant header:
+#   curl -H "X-Dev-Tenant: test-tenant" http://localhost:8080/tenant/test-tenant/jmap
 
 services:
   mongodb:
@@ -38,15 +43,14 @@ services:
       mongodb:
         condition: service_healthy
     environment:
-      # Override config with environment variables
       MONGODB_URI: mongodb://as4:as4dev@mongodb:27017/as4?authSource=admin
-      OAUTH2_ISSUER: ${OAUTH2_ISSUER:-https://auth.example.com}
-      OAUTH2_JWKS_URL: ${OAUTH2_JWKS_URL:-https://auth.example.com/.well-known/jwks.json}
     ports:
       - "8080:8080"
     volumes:
-      - ./cmd/as4-server/config.example.yaml:/etc/as4/config.yaml:ro
-      - as4_keys:/etc/as4/keys
+      # Use dev config for local development
+      - ./cmd/as4-server/config.dev.yaml:/etc/as4/config.yaml:ro
+      # Mount local keys directory
+      - ./keys:/etc/as4/keys:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -74,4 +78,3 @@ services:
 
 volumes:
   mongodb_data:
-  as4_keys:

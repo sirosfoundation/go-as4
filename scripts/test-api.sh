@@ -6,9 +6,15 @@
 # It can be used for manual testing or as a reference for API usage.
 #
 # Prerequisites:
-#   - Server running (make run-server)
+#   - Server running (make dev-up or make run-server)
 #   - MongoDB running (for full functionality)
-#   - JWT token for authenticated endpoints (or use mock mode)
+#
+# For development mode (no JWT required):
+#   export DEV_MODE=true
+#   ./scripts/test-api.sh
+#
+# For production mode:
+#   ./scripts/test-api.sh http://localhost:8080 "$JWT_TOKEN"
 
 set -euo pipefail
 
@@ -17,6 +23,7 @@ BASE_URL="${1:-http://localhost:8080}"
 JWT_TOKEN="${2:-}"
 TENANT_ID="${TENANT_ID:-test-tenant}"
 VERBOSE="${VERBOSE:-false}"
+DEV_MODE="${DEV_MODE:-true}"  # Default to dev mode for easier testing
 
 # Colors for output
 RED='\033[0;31m'
@@ -42,8 +49,12 @@ do_curl() {
         curl_opts+=("-v")
     fi
     
+    # Add authentication header
     if [ -n "$JWT_TOKEN" ]; then
         curl_opts+=("-H" "Authorization: Bearer $JWT_TOKEN")
+    elif [ "$DEV_MODE" = "true" ]; then
+        # Use dev mode header for testing without JWT
+        curl_opts+=("-H" "X-Dev-Tenant: $TENANT_ID")
     fi
     
     response=$(curl "${curl_opts[@]}" -X "$method" "${BASE_URL}${endpoint}" "$@")
@@ -56,9 +67,7 @@ do_curl() {
 
 # Test result tracking
 TESTS_PASSED=0
-TESTS_FAILED=0
-
-check_status() {
+TESTS_FAILED=0check_status() {
     local expected="$1"
     local actual="$2"
     local test_name="$3"

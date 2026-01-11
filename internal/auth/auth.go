@@ -174,26 +174,68 @@ func NewAuthenticator(cfg *config.OAuth2Config, logger *slog.Logger) *Authentica
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Authenticator{
+	a := &Authenticator{
 		config:   cfg,
 		logger:   logger,
 		client:   &http.Client{Timeout: 10 * time.Second},
 		jwksKeys: make(map[string]*rsa.PublicKey),
 	}
+
+	if cfg != nil && cfg.DevMode {
+		logger.Warn("DEV MODE ENABLED - authentication is bypassed! Do not use in production!")
+	}
+
+	return a
 }
 
 // IsEnabled returns true if OAuth2 authentication is configured
 func (a *Authenticator) IsEnabled() bool {
-	return a.config != nil && a.config.Issuer != ""
+	return a.config != nil && (a.config.Issuer != "" || a.config.DevMode)
 }
 
-// ValidateRequest extracts and validates the JWT from an HTTP request
+// IsDevMode returns true if development mode is enabled
+func (a *Authenticator) IsDevMode() bool {
+	return a.config != nil && a.config.DevMode
+}
+
+// ValidateRequest extracts and validates the JWT from an HTTP request.
+// In dev mode, the X-Dev-Tenant header can be used to bypass JWT validation.
 func (a *Authenticator) ValidateRequest(r *http.Request) (*Claims, error) {
+	// Check for dev mode bypass
+	if a.IsDevMode() {
+		if devTenant := r.Header.Get("X-Dev-Tenant"); devTenant != "" {
+			// Validate tenant is allowed in dev mode
+			if !a.isDevTenantAllowed(devTenant) {
+				return nil, fmt.Errorf("tenant %q not allowed in dev mode", devTenant)
+			}
+			a.logger.Debug("dev mode: bypassing auth", "tenant", devTenant)
+			return &Claims{
+				Subject:   "dev-user",
+				TenantID:  devTenant,
+				Tenants:   []string{devTenant},
+				ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
+				IssuedAt:  time.Now().Unix(),
+			}, nil
+		}
+	}
+
 	token := extractBearerToken(r)
 	if token == "" {
 		return nil, ErrNoToken
 	}
 	return a.ValidateToken(r.Context(), token)
+}
+
+func (a *Authenticator) isDevTenantAllowed(tenant string) bool {
+	if a.config == nil || len(a.config.DevTenants) == 0 {
+		return true // No restrictions
+	}
+	for _, t := range a.config.DevTenants {
+		if t == tenant || t == "*" {
+			return true
+		}
+	}
+	return false
 }
 
 // ValidateToken validates a JWT and returns its claims

@@ -144,6 +144,15 @@ type OAuth2Config struct {
 	Issuer   string `yaml:"issuer"`
 	Audience string `yaml:"audience"`
 	JWKSUrl  string `yaml:"jwksUrl"`
+
+	// DevMode enables development mode authentication bypass.
+	// When enabled, the X-Dev-Tenant header can be used to set the tenant
+	// without JWT validation. NEVER enable in production!
+	DevMode bool `yaml:"devMode"`
+
+	// DevTenants is the list of tenants allowed in dev mode.
+	// If empty, any tenant is allowed in dev mode.
+	DevTenants []string `yaml:"devTenants"`
 }
 
 // MetricsConfig holds observability settings
