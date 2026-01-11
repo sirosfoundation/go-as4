@@ -2,13 +2,19 @@ module github.com/sirosfoundation/go-as4
 
 go 1.25.1
 
+// Exclude crypto11 to avoid PKCS#11 dependency issues with miekg/pkcs11
+// The signedxml library imports crypto11 but we don't use PKCS#11 signing in the server
+exclude github.com/ThalesGroup/crypto11 v1.4.1
+
+exclude github.com/ThalesGroup/crypto11 v1.6.0
+
 require (
 	github.com/google/uuid v1.6.0
 	golang.org/x/crypto v0.46.0
 )
 
 require (
-	github.com/ThalesGroup/crypto11 v1.4.1
+	github.com/ThalesGroup/crypto11 v1.2.6
 	github.com/beevik/etree v1.6.0
 	github.com/leifj/signedxml v1.2.3-leifj6
 	github.com/miekg/dns v1.1.70

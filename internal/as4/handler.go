@@ -33,6 +33,7 @@ package as4
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
@@ -49,8 +50,20 @@ import (
 	"github.com/sirosfoundation/go-as4/internal/keystore"
 	"github.com/sirosfoundation/go-as4/internal/storage"
 	"github.com/sirosfoundation/go-as4/pkg/pmode"
-	"github.com/sirosfoundation/go-as4/pkg/security"
 )
+
+// EnvelopeSigner is an interface for signing SOAP envelopes.
+// This allows for different signing implementations (e.g., signedxml-based,
+// goxmldsig-based) to be used without pulling in heavy dependencies.
+type EnvelopeSigner interface {
+	SignEnvelope(envelopeXML []byte) ([]byte, error)
+}
+
+// EnvelopeSignerFactory creates EnvelopeSigner instances.
+// Implementations can be provided via dependency injection.
+type EnvelopeSignerFactory interface {
+	NewSigner(config *pmode.SignConfig, privateKey crypto.Signer, cert *x509.Certificate) (EnvelopeSigner, error)
+}
 
 // Handler processes AS4 messages for a tenant
 type Handler struct {
@@ -58,6 +71,7 @@ type Handler struct {
 	payloadStore   PayloadStore
 	tenantStore    TenantStore
 	signerProvider keystore.SignerProvider
+	signerFactory  EnvelopeSignerFactory
 	logger         *slog.Logger
 }
 
@@ -86,6 +100,7 @@ type Config struct {
 	PayloadStore   PayloadStore
 	TenantStore    TenantStore
 	SignerProvider keystore.SignerProvider
+	SignerFactory  EnvelopeSignerFactory // Optional: if nil, uses built-in basic signer
 	Logger         *slog.Logger
 }
 
@@ -100,6 +115,7 @@ func NewHandler(cfg *Config) *Handler {
 		payloadStore:   cfg.PayloadStore,
 		tenantStore:    cfg.TenantStore,
 		signerProvider: cfg.SignerProvider,
+		signerFactory:  cfg.SignerFactory,
 		logger:         logger,
 	}
 }
@@ -475,37 +491,32 @@ func (h *Handler) signEnvelope(envelope *etree.Document, signer keystore.Signer)
 	cert := signer.Certificate()
 	pubKey := signer.Public()
 
-	// Create a security signer based on the key type
-	var secSigner security.Signer
-	switch key := pubKey.(type) {
-	case *rsa.PublicKey:
-		// RSA key - need to get the private key
-		// The keystore.Signer wraps a crypto.Signer, use that for signing
+	// If a signer factory was provided, try to use it
+	if h.signerFactory != nil {
 		signConfig := &pmode.SignConfig{
 			Algorithm:      pmode.AlgoRSASHA256,
 			TokenReference: pmode.TokenRefBinarySecurityToken,
 		}
-		factory := &security.SignerFactory{}
-		// We can't get the private key directly, so we'll use a wrapper
-		rsaSigner, err := factory.NewSigner(signConfig, nil, cert)
-		if err != nil {
-			// Fall back to a simpler approach - use the wrapped signer
-			return h.signWithCryptoSigner(envelopeBytes, signer)
+		envSigner, err := h.signerFactory.NewSigner(signConfig, signer, cert)
+		if err == nil {
+			signedBytes, err := envSigner.SignEnvelope(envelopeBytes)
+			if err == nil {
+				return signedBytes, nil
+			}
+			// Fall through to built-in signer on error
 		}
-		secSigner = rsaSigner
+	}
+
+	// Use built-in basic signer based on key type
+	switch key := pubKey.(type) {
+	case *rsa.PublicKey:
+		// RSA key - use built-in WS-Security signing
+		return h.signWithCryptoSigner(envelopeBytes, signer)
 	default:
 		// For other key types (Ed25519, etc.), use the wrapper approach
 		_ = key // suppress unused warning
 		return h.signWithCryptoSigner(envelopeBytes, signer)
 	}
-
-	// Sign using the security package
-	signedBytes, err := secSigner.SignEnvelope(envelopeBytes)
-	if err != nil {
-		return nil, fmt.Errorf("signing: %w", err)
-	}
-
-	return signedBytes, nil
 }
 
 // signWithCryptoSigner signs using the keystore.Signer's crypto.Signer interface

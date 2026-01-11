@@ -33,6 +33,24 @@ test-coverage:
 build:
 	go build -v ./...
 
+# Build the AS4 server binary
+server:
+	@echo "Building AS4 server..."
+	@mkdir -p bin
+	CGO_ENABLED=0 go build -v -ldflags="-s -w" -o bin/as4-server ./cmd/as4-server/
+	@echo "Built bin/as4-server"
+
+# Build server Docker image
+server-docker:
+	@echo "Building AS4 server Docker image..."
+	docker build -t go-as4-server:latest -f Dockerfile .
+	@echo "Built go-as4-server:latest"
+
+# Run the server (requires MongoDB)
+run-server: server
+	@echo "Starting AS4 server..."
+	./bin/as4-server -config cmd/as4-server/config.example.yaml
+
 # Build example
 example:
 	mkdir -p bin
@@ -87,6 +105,10 @@ docs:
 run-example: example
 	./bin/as4-example
 
+# =============================================================================
+# Docker & Local Development
+# =============================================================================
+
 # Docker build
 docker-build:
 	docker build -t go-as4:latest .
@@ -95,6 +117,53 @@ docker-build:
 docker-test:
 	docker build -f Dockerfile.test -t go-as4:test .
 	docker run --rm go-as4:test
+
+# Start local development environment (MongoDB + AS4 server)
+dev-up:
+	@echo "Starting development environment..."
+	docker-compose up -d
+	@echo "Waiting for services to be ready..."
+	@sleep 5
+	@echo ""
+	@echo "Services running:"
+	@echo "  AS4 Server:    http://localhost:8080"
+	@echo "  MongoDB:       mongodb://localhost:27017"
+	@echo ""
+	@echo "Test with: ./scripts/test-api.sh"
+
+# Stop local development environment
+dev-down:
+	@echo "Stopping development environment..."
+	docker-compose down
+
+# Stop and remove volumes
+dev-clean:
+	@echo "Stopping and cleaning development environment..."
+	docker-compose down -v
+
+# View server logs
+dev-logs:
+	docker-compose logs -f as4
+
+# Start with database admin UI
+dev-up-full:
+	@echo "Starting full development environment with Mongo Express..."
+	docker-compose --profile tools up -d
+	@echo ""
+	@echo "Services running:"
+	@echo "  AS4 Server:    http://localhost:8080"
+	@echo "  MongoDB:       mongodb://localhost:27017"
+	@echo "  Mongo Express: http://localhost:8081"
+
+# Run API test script
+test-api: 
+	@chmod +x ./scripts/test-api.sh
+	./scripts/test-api.sh http://localhost:8080
+
+# Run API test with verbose output
+test-api-verbose:
+	@chmod +x ./scripts/test-api.sh
+	VERBOSE=true ./scripts/test-api.sh http://localhost:8080
 
 # =============================================================================
 # Interoperability Testing with phase4
@@ -244,29 +313,41 @@ help:
 	@echo "Available targets:"
 	@echo ""
 	@echo "  Build & Test:"
-	@echo "    all            - Run tests and build (default)"
-	@echo "    test           - Run tests with race detection and coverage"
-	@echo "    test-verbose   - Run tests with verbose output"
-	@echo "    benchmark      - Run benchmarks"
-	@echo "    coverage       - Generate HTML coverage report"
-	@echo "    build          - Build the library"
-	@echo "    example        - Build the example application"
-	@echo "    run-example    - Build and run the example"
-	@echo "    clean          - Remove build artifacts"
+	@echo "    all              - Run tests and build (default)"
+	@echo "    test             - Run tests with race detection and coverage"
+	@echo "    test-verbose     - Run tests with verbose output"
+	@echo "    benchmark        - Run benchmarks"
+	@echo "    coverage         - Generate HTML coverage report"
+	@echo "    build            - Build the library"
+	@echo "    server           - Build the AS4 server binary"
+	@echo "    server-docker    - Build AS4 server Docker image"
+	@echo "    run-server       - Build and run the server"
+	@echo "    example          - Build the example application"
+	@echo "    run-example      - Build and run the example"
+	@echo "    clean            - Remove build artifacts"
 	@echo ""
 	@echo "  Dependencies:"
-	@echo "    install        - Download and tidy dependencies"
-	@echo "    update-deps    - Update all dependencies"
+	@echo "    install          - Download and tidy dependencies"
+	@echo "    update-deps      - Update all dependencies"
 	@echo ""
 	@echo "  Code Quality:"
-	@echo "    lint           - Run linters (golangci-lint, go vet)"
-	@echo "    fmt            - Format code (gofmt, goimports)"
-	@echo "    security-scan  - Run security scanner (gosec)"
-	@echo "    vuln-check     - Check for known vulnerabilities"
+	@echo "    lint             - Run linters (golangci-lint, go vet)"
+	@echo "    fmt              - Format code (gofmt, goimports)"
+	@echo "    security-scan    - Run security scanner (gosec)"
+	@echo "    vuln-check       - Check for known vulnerabilities"
+	@echo ""
+	@echo "  Local Development (docker-compose):"
+	@echo "    dev-up           - Start MongoDB + AS4 server"
+	@echo "    dev-up-full      - Start with Mongo Express UI"
+	@echo "    dev-down         - Stop services"
+	@echo "    dev-clean        - Stop and remove volumes"
+	@echo "    dev-logs         - Follow server logs"
+	@echo "    test-api         - Run API test script"
+	@echo "    test-api-verbose - Run API tests with verbose output"
 	@echo ""
 	@echo "  Docker:"
-	@echo "    docker-build   - Build Docker image"
-	@echo "    docker-test    - Run tests in Docker"
+	@echo "    docker-build     - Build Docker image"
+	@echo "    docker-test      - Run tests in Docker"
 	@echo ""
 	@echo "  Interoperability Testing (phase4):"
 	@echo "    interop-build        - Build the interop test binary"
@@ -284,6 +365,6 @@ help:
 	@echo "    interop-clean        - Clean up interop test artifacts"
 	@echo ""
 	@echo "  Other:"
-	@echo "    docs           - Start local documentation server"
-	@echo "    ci             - Run full CI pipeline"
-	@echo "    help           - Show this help message"
+	@echo "    docs             - Start local documentation server"
+	@echo "    ci               - Run full CI pipeline"
+	@echo "    help             - Show this help message"

@@ -1,3 +1,5 @@
+//go:build pkcs11
+
 // Package keystore provides the PKCS#11 signer implementation
 package keystore
 

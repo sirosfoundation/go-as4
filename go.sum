@@ -1,5 +1,5 @@
-github.com/ThalesGroup/crypto11 v1.4.1 h1:6YR6aVL8LI8akReXKTEgxf+k0+b8wlV8Ra7tZnCG9y4=
-github.com/ThalesGroup/crypto11 v1.4.1/go.mod h1:vggvBwlVrqePDrooq/B32dMXlfEsdsFY+6YlSD7VOy0=
+github.com/ThalesGroup/crypto11 v1.2.6 h1:KixeJpVw3Y9gLSsz393XHh/Pez7q+KBXit4TQebmOz4=
+github.com/ThalesGroup/crypto11 v1.2.6/go.mod h1:Grol7G+6zQdI94hGq+j702L1QFHSlJA5lBLl8uWAhG0=
 github.com/beevik/etree v1.6.0 h1:u8Kwy8pp9D9XeITj2Z0XtA5qqZEmtJtuXZRQi+j03eE=
 github.com/beevik/etree v1.6.0/go.mod h1:bh4zJxiIr62SOf9pRzN7UUYaEDa9HEKafK25+sLc0Gc=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
