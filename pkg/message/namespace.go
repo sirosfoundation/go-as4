@@ -35,7 +35,7 @@ func AddEbMSPrefix(xmlData []byte) ([]byte, error) {
 
 	result := string(xmlData)
 
-	//Replace opening tags with prefixed versions
+	// Replace opening tags with prefixed versions
 	for _, elem := range ebmsElements {
 		// Replace opening tags: <Element to <eb:Element
 		result = strings.ReplaceAll(result, "<"+elem+" ", "<eb:"+elem+" ")
