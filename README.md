@@ -23,6 +23,8 @@ A Go library implementing the eDelivery AS4 2.0 specification for secure, reliab
 
 go-as4 implements the European Commission's eDelivery AS4 profile, which is based on the OASIS ebXML Messaging Services v3.0 (ebMS3) and AS4 specifications. This library provides a complete implementation of the AS4 protocol for secure, reliable business message exchange.
 
+The project includes both a **library** for embedding AS4 functionality into your applications and a **production-ready multi-tenant server** with JMAP-based mailbox access.
+
 ## Features
 
 ### Core AS4 Features
@@ -36,6 +38,19 @@ go-as4 implements the European Commission's eDelivery AS4 profile, which is base
 - **Reliability**: Reception awareness with retry and duplicate detection
 - **Compression**: GZIP payload compression
 - **MEPs**: One-Way/Push message exchange pattern
+
+### Server Features
+- **Multi-tenant architecture**: Single server instance serves multiple organizations
+- **JMAP API**: RFC 8620-compliant API for mailbox access and message management
+- **REST API**: Traditional REST endpoints for tenant and message management
+- **Background Sender**: Automatic retry with exponential backoff
+- **Flexible Key Management**:
+  - File-based keys (development)
+  - FIDO2/PRF-based key encryption (production)
+  - PKCS#11 HSM support (high-security)
+- **OAuth2/OIDC Authentication**: JWT-based API authentication
+- **MongoDB Storage**: Messages and payloads stored with GridFS
+- **Observability**: Prometheus metrics and distributed tracing
 
 ### Interoperability
 - Tested against [phase4](https://github.com/phax/phase4) reference implementation
@@ -86,10 +101,110 @@ func main() {
 }
 ```
 
+## AS4 Server
+
+The `as4-server` is a production-ready, multi-tenant AS4 message handler with JMAP-based mailbox access.
+
+### Running the Server
+
+```bash
+# Build the server
+make build
+
+# Run with configuration file
+./bin/as4-server -config config.yaml
+
+# Or use Docker Compose for development
+make dev-setup  # One-time setup
+make dev-up     # Start MongoDB + server
+```
+
+### Server API Endpoints
+
+The server exposes multiple API surfaces:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/tenant/{id}/as4` | POST | Receive inbound AS4 messages |
+| `/tenant/{id}/jmap/session` | GET | JMAP session/capability discovery |
+| `/tenant/{id}/jmap` | POST | JMAP method invocations |
+| `/tenant/{id}/jmap/download/{blobID}/{name}` | GET | Download message payloads |
+| `/tenant/{id}/api/participants` | GET/POST | Manage trading partners |
+| `/tenant/{id}/api/messages` | GET/POST | List/send messages |
+| `/health` | GET | Liveness probe |
+| `/metrics` | GET | Prometheus metrics |
+
+### Configuration
+
+```yaml
+# config.yaml
+server:
+  port: 8080
+  basePath: "/tenant"
+
+storage:
+  mongodb:
+    uri: "mongodb://localhost:27017"
+    database: "as4"
+
+# Key management: file, prf, or pkcs11
+signing:
+  mode: "file"
+  file:
+    keyDir: "./keys"
+
+# OAuth2/OIDC for API authentication
+oauth2:
+  issuer: "https://auth.example.com"
+  audience: "as4-api"
+  jwksUrl: "https://auth.example.com/.well-known/jwks.json"
+```
+
+See [config.example.yaml](cmd/as4-server/config.example.yaml) for all options.
+
+### JMAP API
+
+The server implements the [JMAP extension for AS4](docs/draft-johansson-jmap-as4.md) (draft-johansson-jmap-as4), providing:
+
+- **AS4Message** data type for representing AS4 messages
+- **Mailbox** support for organizing inbound/outbound/sent messages
+- **Push notifications** via Server-Sent Events (SSE)
+- **Blob downloads** for message payloads
+
+Example JMAP request:
+
+```json
+{
+  "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:as4"],
+  "methodCalls": [
+    ["AS4Message/query", {
+      "accountId": "tenant-123",
+      "filter": { "inMailbox": "inbox" }
+    }, "0"],
+    ["AS4Message/get", {
+      "accountId": "tenant-123",
+      "#ids": { "resultOf": "0", "name": "AS4Message/query", "path": "/ids" }
+    }, "1"]
+  ]
+}
+```
+
 ## Architecture
 
 ```
 go-as4/
+├── cmd/
+│   └── as4-server/   # Multi-tenant AS4 server
+├── internal/
+│   ├── as4/          # AS4 message handling
+│   ├── auth/         # OAuth2/JWT authentication
+│   ├── config/       # Configuration loading
+│   ├── jmap/         # JMAP protocol handler
+│   ├── keystore/     # Key management (file/PRF/PKCS#11)
+│   ├── sender/       # Background message sender
+│   ├── server/       # HTTP server and routing
+│   ├── storage/      # MongoDB storage layer
+│   └── tenant/       # Multi-tenant management
 ├── pkg/
 │   ├── as4/          # Main AS4 client/server API
 │   ├── message/      # AS4 message structure and ebMS3 headers
@@ -110,6 +225,7 @@ go-as4/
 
 ## Documentation
 
+- [JMAP-AS4 Specification](docs/draft-johansson-jmap-as4.md) - JMAP extension for AS4
 - [Architecture Decision Records](docs/adr/README.md) - Key design decisions
 - [Implementation Details](docs/IMPLEMENTATION.md) - Technical implementation
 - [Security](SECURITY.md) - Security features and hardening
