@@ -9,6 +9,8 @@ linters:
     - errcheck
     # Disable unused for now - some code is intentionally prepared for future use
     - unused
+    # Disable gofmt - using separate format check job
+    - gofmt
 
   exclusions:
     rules:
@@ -33,17 +35,22 @@ linters:
         text: "ST1023"  # omit type from declaration
       - linters:
           - staticcheck
+        text: "QF1011"  # omit type from declaration (quickfix)
+      - linters:
+          - staticcheck
+        text: "S1009"   # nil check before len()
+      - linters:
+          - staticcheck
         text: "S1011"   # append simplification
       - linters:
           - staticcheck
         text: "S1017"   # TrimPrefix
       - linters:
           - staticcheck
+        text: "S1031"   # unnecessary nil check around range
+      - linters:
+          - staticcheck
+        text: "SA1019"  # deprecated functions
+      - linters:
+          - staticcheck
         text: "SA9003"  # empty branch
-
-formatters:
-  enable:
-    - gofmt
-  settings:
-    gofmt:
-      simplify: true

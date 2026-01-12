@@ -155,9 +155,16 @@ jobs:
     
     - name: Check formatting
       run: |
-        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+        FILES=$(gofmt -s -l . | grep -v vendor || true)
+        if [ -n "$FILES" ]; then
           echo "The following files are not formatted:"
-          gofmt -s -l .
+          echo "$FILES"
+          echo ""
+          echo "Formatting differences:"
+          for f in $FILES; do
+            echo "=== $f ==="
+            gofmt -s -d "$f"
+          done
           exit 1
         fi
     
