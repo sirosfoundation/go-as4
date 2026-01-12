@@ -1,0 +1,26 @@
+# golangci-lint configuration for go-as4
+version: "2"
+
+linters:
+  default: standard
+  disable:
+    # Disable errcheck for now - too many false positives
+    # defer resp.Body.Close() is idiomatic Go
+    - errcheck
+    # Disable unused for now - some code is intentionally prepared for future use
+    - unused
+  
+  settings:
+    staticcheck:
+      checks:
+        - "all"
+        - "-ST1000"  # package comments
+        - "-ST1003"  # MixedCaps
+        - "-S1011"   # append simplification
+
+formatters:
+  enable:
+    - gofmt
+  settings:
+    gofmt:
+      simplify: true
