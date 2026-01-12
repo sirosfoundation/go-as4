@@ -9,8 +9,6 @@ linters:
     - errcheck
     # Disable unused for now - some code is intentionally prepared for future use
     - unused
-    # Disable gofmt - using separate format check job
-    - gofmt
 
   exclusions:
     rules:
@@ -54,3 +52,10 @@ linters:
       - linters:
           - staticcheck
         text: "SA9003"  # empty branch
+
+formatters:
+  enable:
+    - gofmt
+  settings:
+    gofmt:
+      simplify: true

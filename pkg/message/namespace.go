@@ -11,14 +11,16 @@ import (
 // which expects prefixed namespaces.
 //
 // Transforms:
-//   <Messaging xmlns="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/">
-//     <UserMessage>
-//       <MessageInfo>...
+//
+//	<Messaging xmlns="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/">
+//	  <UserMessage>
+//	    <MessageInfo>...
 //
 // Into:
-//   <eb:Messaging xmlns:eb="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/">
-//     <eb:UserMessage>
-//       <eb:MessageInfo>...
+//
+//	<eb:Messaging xmlns:eb="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/">
+//	  <eb:UserMessage>
+//	    <eb:MessageInfo>...
 func AddEbMSPrefix(xmlData []byte) ([]byte, error) {
 	const ebmsNS = "http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/"
 
