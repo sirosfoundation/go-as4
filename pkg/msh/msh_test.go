@@ -547,12 +547,15 @@ func TestHandleError(t *testing.T) {
 func TestReceiveMessage(t *testing.T) {
 	resolver := NewStaticEndpointResolver()
 
+	var mu sync.Mutex
 	var messageHandlerCalled bool
 	var receivedMsg *InboundMessage
 
 	config := MSHConfig{
 		Resolver: resolver,
 		MessageHandler: func(msg *InboundMessage) {
+			mu.Lock()
+			defer mu.Unlock()
 			messageHandlerCalled = true
 			receivedMsg = msg
 		},
@@ -580,6 +583,8 @@ func TestReceiveMessage(t *testing.T) {
 	// Give time for processing
 	time.Sleep(100 * time.Millisecond)
 
+	mu.Lock()
+	defer mu.Unlock()
 	assert.True(t, messageHandlerCalled)
 	assert.Equal(t, "inbound-test-456", receivedMsg.MessageID)
 }

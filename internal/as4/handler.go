@@ -122,12 +122,12 @@ func NewHandler(cfg *Config) *Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	
+
 	signerFactory := cfg.SignerFactory
 	if signerFactory == nil {
 		signerFactory = &defaultSignerFactory{}
 	}
-	
+
 	return &Handler{
 		messageStore:   cfg.MessageStore,
 		payloadStore:   cfg.PayloadStore,

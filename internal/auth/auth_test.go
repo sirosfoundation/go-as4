@@ -25,9 +25,9 @@ func TestAuthenticator_DevMode(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		tenant    string
-		wantErr   bool
+		name       string
+		tenant     string
+		wantErr    bool
 		wantTenant string
 	}{
 		{
