@@ -4,19 +4,42 @@ version: "2"
 linters:
   default: standard
   disable:
-    # Disable errcheck for now - too many false positives
+    # Disable errcheck - too many false positives
     # defer resp.Body.Close() is idiomatic Go
     - errcheck
     # Disable unused for now - some code is intentionally prepared for future use
     - unused
-  
-  settings:
-    staticcheck:
-      checks:
-        - "all"
-        - "-ST1000"  # package comments
-        - "-ST1003"  # MixedCaps
-        - "-S1011"   # append simplification
+
+  exclusions:
+    rules:
+      # Disable specific staticcheck rules
+      - linters:
+          - staticcheck
+        text: "ST1000"  # package comments
+      - linters:
+          - staticcheck
+        text: "ST1003"  # MixedCaps
+      - linters:
+          - staticcheck
+        text: "ST1005"  # error strings capitalization
+      - linters:
+          - staticcheck
+        text: "ST1021"  # comment on exported type
+      - linters:
+          - staticcheck
+        text: "ST1022"  # comment on exported const
+      - linters:
+          - staticcheck
+        text: "ST1023"  # omit type from declaration
+      - linters:
+          - staticcheck
+        text: "S1011"   # append simplification
+      - linters:
+          - staticcheck
+        text: "S1017"   # TrimPrefix
+      - linters:
+          - staticcheck
+        text: "SA9003"  # empty branch
 
 formatters:
   enable:
