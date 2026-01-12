@@ -164,7 +164,7 @@ See [config.example.yaml](cmd/as4-server/config.example.yaml) for all options.
 
 ### JMAP API
 
-The server implements the [JMAP extension for AS4](docs/draft-johansson-jmap-as4.md) (draft-johansson-jmap-as4), providing:
+The server implements an exmperimental [JMAP extension for AS4](docs/draft-johansson-jmap-as4.md) (draft-johansson-jmap-as4), providing:
 
 - **AS4Message** data type for representing AS4 messages
 - **Mailbox** support for organizing inbound/outbound/sent messages
@@ -225,7 +225,7 @@ go-as4/
 
 ## Documentation
 
-- [JMAP-AS4 Specification](docs/draft-johansson-jmap-as4.md) - JMAP extension for AS4
+- [JMAP-AS4 Specification](docs/draft-johansson-jmap-as4.md) - Experimental JMAP extension for AS4
 - [Architecture Decision Records](docs/adr/README.md) - Key design decisions
 - [Implementation Details](docs/IMPLEMENTATION.md) - Technical implementation
 - [Security](SECURITY.md) - Security features and hardening
