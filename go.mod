@@ -20,6 +20,7 @@ require (
 	github.com/beevik/etree v1.6.0
 	github.com/leifj/signedxml v1.2.3-leifj9
 	github.com/miekg/dns v1.1.70
+	github.com/sirosfoundation/go-cryptoutil v0.2.0
 	github.com/sirosfoundation/go-trust v0.0.0-20260108214437-2745da0592da
 	go.mongodb.org/mongo-driver v1.17.6
 	gopkg.in/yaml.v3 v3.0.1
@@ -63,7 +64,6 @@ require (
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/russellhaering/goxmldsig v1.5.0 // indirect
 	github.com/sirosfoundation/g119612 v0.0.0-20260108094825-5b3123230280 // indirect
-	github.com/sirosfoundation/go-cryptoutil v0.2.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/thales-e-security/pool v0.0.2 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
