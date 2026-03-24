@@ -24,12 +24,14 @@ import (
 	"sync"
 
 	"github.com/ThalesGroup/crypto11"
+	"github.com/sirosfoundation/go-cryptoutil"
 )
 
 // PKCS11Provider implements SignerProvider using a PKCS#11 token (HSM/smart card)
 type PKCS11Provider struct {
 	ctx             *crypto11.Context
 	keyLabelPattern string
+	cryptoExt       *cryptoutil.Extensions
 	mu              sync.RWMutex
 	signers         map[string]*pkcs11Signer // Cache of tenant+keyID -> signer
 }
@@ -51,6 +53,9 @@ type PKCS11Config struct {
 	// KeyLabelPattern is the pattern for key labels
 	// Use {tenant-id} as placeholder, e.g., "tenant-{tenant-id}-signing"
 	KeyLabelPattern string
+
+	// CryptoExt provides extended algorithm and certificate support
+	CryptoExt *cryptoutil.Extensions
 }
 
 // NewPKCS11Provider creates a new PKCS#11 signer provider
@@ -81,6 +86,7 @@ func NewPKCS11Provider(cfg *PKCS11Config) (*PKCS11Provider, error) {
 	return &PKCS11Provider{
 		ctx:             ctx,
 		keyLabelPattern: pattern,
+		cryptoExt:       cfg.CryptoExt,
 		signers:         make(map[string]*pkcs11Signer),
 	}, nil
 }
@@ -163,7 +169,7 @@ func (p *PKCS11Provider) loadSigner(label string) (*pkcs11Signer, error) {
 	}
 
 	// Determine algorithm from key type
-	algorithm := determineAlgorithm(key)
+	algorithm := determineAlgorithm(key, p.cryptoExt)
 
 	return &pkcs11Signer{
 		key:       key,
@@ -195,7 +201,12 @@ func (s *pkcs11Signer) Algorithm() string {
 	return s.algorithm
 }
 
-func determineAlgorithm(key crypto.Signer) string {
+func determineAlgorithm(key crypto.Signer, ext *cryptoutil.Extensions) string {
+	if ext != nil {
+		if uri, err := ext.Algorithms.XMLDSIGAlgorithm(key.Public()); err == nil {
+			return uri
+		}
+	}
 	switch key.Public().(type) {
 	case interface {
 		Params() interface{ Name() string }

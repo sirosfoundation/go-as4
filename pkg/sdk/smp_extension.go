@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/xml"
 	"fmt"
+
+	"github.com/sirosfoundation/go-cryptoutil"
 )
 
 // SMPExtension represents an SMP extension element
@@ -40,7 +42,7 @@ type CertificatePublishingInfo struct {
 }
 
 // ParseCertificateExtensions parses SDK certificate publishing extensions from SMP data
-func ParseCertificateExtensions(extensionsXML []byte) (*CertificatePublishingInfo, error) {
+func ParseCertificateExtensions(extensionsXML []byte, ext *cryptoutil.Extensions) (*CertificatePublishingInfo, error) {
 	// The extension XML structure expected:
 	// <Extension>
 	//   <ExtensionID>urn:fdc:digg.se:edelivery:certpub</ExtensionID>
@@ -68,7 +70,7 @@ func ParseCertificateExtensions(extensionsXML []byte) (*CertificatePublishingInf
 	var wrapper extensionWrapper
 	if err := xml.Unmarshal(extensionsXML, &wrapper); err != nil {
 		// Try alternate structure where certificates are directly in extension content
-		return parseAlternateCertFormat(extensionsXML)
+		return parseAlternateCertFormat(extensionsXML, ext)
 	}
 
 	// Check if this is a certificate publishing extension
@@ -77,7 +79,7 @@ func ParseCertificateExtensions(extensionsXML []byte) (*CertificatePublishingInf
 	}
 
 	for _, entry := range wrapper.CertificateList {
-		cert, err := parseCertificateFromBase64(entry.Value)
+		cert, err := parseCertificateFromBase64(entry.Value, ext)
 		if err != nil {
 			continue // Skip malformed certificates
 		}
@@ -102,7 +104,7 @@ func ParseCertificateExtensions(extensionsXML []byte) (*CertificatePublishingInf
 }
 
 // parseAlternateCertFormat handles alternate certificate extension formats
-func parseAlternateCertFormat(data []byte) (*CertificatePublishingInfo, error) {
+func parseAlternateCertFormat(data []byte, ext *cryptoutil.Extensions) (*CertificatePublishingInfo, error) {
 	// Try parsing as a list of Extension elements
 	type extensionList struct {
 		Extensions []struct {
@@ -120,26 +122,26 @@ func parseAlternateCertFormat(data []byte) (*CertificatePublishingInfo, error) {
 		Extensions: make([]CertificateExtension, 0),
 	}
 
-	for _, ext := range list.Extensions {
-		switch ext.ExtensionID {
+	for _, xmlExt := range list.Extensions {
+		switch xmlExt.ExtensionID {
 		case ExtensionSigningCert:
-			cert, err := parseCertificateFromBase64(ext.Content)
+			cert, err := parseCertificateFromBase64(xmlExt.Content, ext)
 			if err == nil {
 				info.SigningCertificate = cert
 				info.Extensions = append(info.Extensions, CertificateExtension{
 					Type:           ExtensionSigningCert,
 					Certificate:    cert,
-					RawCertificate: ext.Content,
+					RawCertificate: xmlExt.Content,
 				})
 			}
 		case ExtensionEncryptionCert:
-			cert, err := parseCertificateFromBase64(ext.Content)
+			cert, err := parseCertificateFromBase64(xmlExt.Content, ext)
 			if err == nil {
 				info.EncryptionCertificate = cert
 				info.Extensions = append(info.Extensions, CertificateExtension{
 					Type:           ExtensionEncryptionCert,
 					Certificate:    cert,
-					RawCertificate: ext.Content,
+					RawCertificate: xmlExt.Content,
 				})
 			}
 		}
@@ -149,11 +151,15 @@ func parseAlternateCertFormat(data []byte) (*CertificatePublishingInfo, error) {
 }
 
 // parseCertificateFromBase64 decodes and parses a base64-encoded DER certificate
-func parseCertificateFromBase64(b64 string) (*x509.Certificate, error) {
+func parseCertificateFromBase64(b64 string, ext *cryptoutil.Extensions) (*x509.Certificate, error) {
 	// Remove any whitespace
 	der, err := base64.StdEncoding.DecodeString(b64)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode certificate: %w", err)
+	}
+
+	if ext != nil {
+		return ext.ParseCertificate(der)
 	}
 
 	cert, err := x509.ParseCertificate(der)

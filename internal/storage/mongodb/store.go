@@ -17,13 +17,15 @@ import (
 
 	"github.com/sirosfoundation/go-as4/internal/keystore"
 	"github.com/sirosfoundation/go-as4/internal/storage"
+	"github.com/sirosfoundation/go-cryptoutil"
 )
 
 // Store implements storage.Store using MongoDB
 type Store struct {
-	client *mongo.Client
-	db     *mongo.Database
-	gridfs *gridfs.Bucket
+	client    *mongo.Client
+	db        *mongo.Database
+	gridfs    *gridfs.Bucket
+	cryptoExt *cryptoutil.Extensions
 
 	// Collections
 	tenants      *mongo.Collection
@@ -40,6 +42,7 @@ type Config struct {
 	Database       string
 	GridFSBucket   string
 	ChunkSizeBytes int32
+	CryptoExt      *cryptoutil.Extensions
 }
 
 // NewStore creates a new MongoDB store
@@ -77,6 +80,7 @@ func NewStore(ctx context.Context, cfg *Config) (*Store, error) {
 		client:       client,
 		db:           db,
 		gridfs:       bucket,
+		cryptoExt:    cfg.CryptoExt,
 		tenants:      db.Collection("tenants"),
 		participants: db.Collection("participants"),
 		mailboxes:    db.Collection("mailboxes"),
@@ -634,6 +638,9 @@ func (s *Store) GetCertificate(ctx context.Context, tenantID, keyID string) (*x5
 		return nil, err
 	}
 
+	if s.cryptoExt != nil {
+		return s.cryptoExt.ParseCertificate(doc.CertDER)
+	}
 	return x509.ParseCertificate(doc.CertDER)
 }
 

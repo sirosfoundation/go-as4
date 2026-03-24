@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/sirosfoundation/go-cryptoutil"
 )
 
 // FileProvider implements SignerProvider using PEM files on disk
@@ -23,13 +25,14 @@ import (
 // Key files are expected at: {keyDir}/{tenantID}/{keyID}.key
 // Certificate files at: {keyDir}/{tenantID}/{keyID}.crt
 type FileProvider struct {
-	keyDir  string
-	mu      sync.RWMutex
-	signers map[string]*fileSigner
+	keyDir    string
+	cryptoExt *cryptoutil.Extensions
+	mu        sync.RWMutex
+	signers   map[string]*fileSigner
 }
 
 // NewFileProvider creates a new file-based signer provider
-func NewFileProvider(keyDir string) (*FileProvider, error) {
+func NewFileProvider(keyDir string, ext *cryptoutil.Extensions) (*FileProvider, error) {
 	info, err := os.Stat(keyDir)
 	if err != nil {
 		return nil, fmt.Errorf("checking key directory: %w", err)
@@ -39,8 +42,9 @@ func NewFileProvider(keyDir string) (*FileProvider, error) {
 	}
 
 	return &FileProvider{
-		keyDir:  keyDir,
-		signers: make(map[string]*fileSigner),
+		keyDir:    keyDir,
+		cryptoExt: ext,
+		signers:   make(map[string]*fileSigner),
 	}, nil
 }
 
@@ -73,7 +77,7 @@ func (p *FileProvider) GetSigner(ctx context.Context, tenantID, keyID string) (S
 // GetCertificate returns the certificate for the specified key
 func (p *FileProvider) GetCertificate(ctx context.Context, tenantID, keyID string) (*x509.Certificate, error) {
 	certPath := filepath.Join(p.keyDir, tenantID, keyID+".crt")
-	return loadCertificate(certPath)
+	return loadCertificate(certPath, p.cryptoExt)
 }
 
 // ListKeys returns all key IDs for a tenant
@@ -100,7 +104,7 @@ func (p *FileProvider) ListKeys(ctx context.Context, tenantID string) ([]KeyInfo
 
 		// Try to load the certificate for metadata
 		certPath := filepath.Join(tenantDir, keyID+".crt")
-		cert, err := loadCertificate(certPath)
+		cert, err := loadCertificate(certPath, p.cryptoExt)
 		if err != nil {
 			continue // Skip keys without certificates
 		}
@@ -146,12 +150,12 @@ func (p *FileProvider) loadSigner(tenantID, keyID string) (*fileSigner, error) {
 	}
 
 	// Load certificate
-	cert, err := loadCertificate(certPath)
+	cert, err := loadCertificate(certPath, p.cryptoExt)
 	if err != nil {
 		return nil, fmt.Errorf("loading certificate: %w", err)
 	}
 
-	algorithm := determineAlgorithmFromKey(key)
+	algorithm := determineAlgorithmFromKey(key, p.cryptoExt)
 
 	return &fileSigner{
 		key:       key,
@@ -209,7 +213,7 @@ func parsePrivateKey(pemData []byte) (crypto.Signer, error) {
 	}
 }
 
-func loadCertificate(path string) (*x509.Certificate, error) {
+func loadCertificate(path string, ext *cryptoutil.Extensions) (*x509.Certificate, error) {
 	certPEM, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading certificate file: %w", err)
@@ -220,10 +224,18 @@ func loadCertificate(path string) (*x509.Certificate, error) {
 		return nil, fmt.Errorf("no PEM block found")
 	}
 
+	if ext != nil {
+		return ext.ParseCertificate(block.Bytes)
+	}
 	return x509.ParseCertificate(block.Bytes)
 }
 
-func determineAlgorithmFromKey(key crypto.Signer) string {
+func determineAlgorithmFromKey(key crypto.Signer, ext *cryptoutil.Extensions) string {
+	if ext != nil {
+		if uri, err := ext.Algorithms.XMLDSIGAlgorithm(key.Public()); err == nil {
+			return uri
+		}
+	}
 	switch key.(type) {
 	case *ecdsa.PrivateKey:
 		return "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256"

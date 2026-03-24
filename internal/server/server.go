@@ -76,7 +76,7 @@ func New(cfg *config.Config, store storage.Store, logger *slog.Logger) (*Server,
 		encryptedKeyStore = store
 	}
 
-	ks, err := keystore.NewProvider(&cfg.Signing, encryptedKeyStore)
+	ks, err := keystore.NewProvider(&cfg.Signing, encryptedKeyStore, nil)
 	if err != nil {
 		return nil, fmt.Errorf("initializing keystore: %w", err)
 	}

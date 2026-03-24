@@ -5,28 +5,30 @@ import (
 	"fmt"
 
 	"github.com/sirosfoundation/go-as4/internal/config"
+	"github.com/sirosfoundation/go-cryptoutil"
 )
 
 // NewProvider creates a SignerProvider based on the configuration
-func NewProvider(cfg *config.SigningConfig, store EncryptedKeyStore) (SignerProvider, error) {
+func NewProvider(cfg *config.SigningConfig, store EncryptedKeyStore, ext *cryptoutil.Extensions) (SignerProvider, error) {
 	switch cfg.Mode {
 	case "pkcs11":
-		return newPKCS11Provider(cfg)
+		return newPKCS11Provider(cfg, ext)
 	case "prf":
 		return newPRFProvider(cfg, store)
 	case "file":
-		return newFileProvider(cfg)
+		return newFileProvider(cfg, ext)
 	default:
 		return nil, fmt.Errorf("unknown signing mode: %s", cfg.Mode)
 	}
 }
 
-func newPKCS11Provider(cfg *config.SigningConfig) (SignerProvider, error) {
+func newPKCS11Provider(cfg *config.SigningConfig, ext *cryptoutil.Extensions) (SignerProvider, error) {
 	p11cfg := &PKCS11Config{
 		ModulePath:      cfg.PKCS11.ModulePath,
 		SlotLabel:       cfg.PKCS11.SlotLabel,
 		PIN:             cfg.PKCS11.PIN,
 		KeyLabelPattern: cfg.PKCS11.KeyLabelPattern,
+		CryptoExt:       ext,
 	}
 	if cfg.PKCS11.SlotID > 0 {
 		slotID := cfg.PKCS11.SlotID
@@ -46,10 +48,10 @@ func newPRFProvider(cfg *config.SigningConfig, store EncryptedKeyStore) (SignerP
 	})
 }
 
-func newFileProvider(cfg *config.SigningConfig) (SignerProvider, error) {
+func newFileProvider(cfg *config.SigningConfig, ext *cryptoutil.Extensions) (SignerProvider, error) {
 	keyDir := cfg.File.KeyDir
 	if keyDir == "" {
 		keyDir = "./keys"
 	}
-	return NewFileProvider(keyDir)
+	return NewFileProvider(keyDir, ext)
 }

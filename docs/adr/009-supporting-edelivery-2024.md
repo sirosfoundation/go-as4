@@ -1,6 +1,6 @@
 # Decision
 
-go-trust will support the eDelivery profile of AS4 2.0
+go-trust MUST support the eDelivery profile of AS4 2.0
 
 # Reason
 

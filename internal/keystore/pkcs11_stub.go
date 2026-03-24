@@ -17,6 +17,8 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
+
+	"github.com/sirosfoundation/go-cryptoutil"
 )
 
 // PKCS11Provider is a stub that returns an error when PKCS#11 support is not compiled in.
@@ -29,6 +31,7 @@ type PKCS11Config struct {
 	SlotLabel       string
 	PIN             string
 	KeyLabelPattern string
+	CryptoExt       *cryptoutil.Extensions
 }
 
 // ErrPKCS11NotSupported is returned when PKCS#11 operations are attempted
