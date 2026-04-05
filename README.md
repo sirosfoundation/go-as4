@@ -9,11 +9,8 @@
 [![Coverage](https://raw.githubusercontent.com/sirosfoundation/go-as4/badges/.badges/main/coverage.svg)](https://github.com/sirosfoundation/go-as4/actions/workflows/ci.yml)
 [![Go Version](https://raw.githubusercontent.com/sirosfoundation/go-as4/badges/.badges/main/golang.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-BSD_2--Clause-blue.svg)](https://opensource.org/licenses/BSD-2-Clause)
-
 [![CodeQL](https://github.com/sirosfoundation/go-as4/actions/workflows/codeql.yml/badge.svg)](https://github.com/sirosfoundation/go-as4/actions/workflows/codeql.yml)
-[![Latest Release](https://img.shields.io/github/v/release/sirosfoundation/go-as4?include_prereleases)](https://github.com/sirosfoundation/go-as4/releases)
 [![Issues](https://img.shields.io/github/issues/sirosfoundation/go-as4)](https://github.com/sirosfoundation/go-as4/issues)
-[![Last Commit](https://img.shields.io/github/last-commit/sirosfoundation/go-as4)](https://github.com/sirosfoundation/go-as4/commits/main)
 
 </div>
 
