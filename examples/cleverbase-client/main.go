@@ -190,21 +190,40 @@ func parseTokenRef(s string) pmode.TokenReferenceMethod {
 	}
 }
 
+// partyType returns the PartyId type attribute for the given ICD scheme.
+// An empty scheme means the id value is already in full URN form and the
+// standard "unregistered" type is used.
+func partyType(scheme string) string {
+	if scheme == "" {
+		return "urn:oasis:names:tc:ebcore:partyid-type:unregistered"
+	}
+	return iso6523 + ":" + scheme
+}
+
+// partyUrn returns the full URN form used in the eDelivery message
+// properties (originalSender/finalRecipient).
+func partyUrn(scheme, id string) string {
+	if scheme == "" {
+		return id
+	}
+	return iso6523 + ":" + scheme + "::" + id
+}
+
 // buildUserMessage composes the ebMS UserMessage per the collected evidence:
 // iso6523 party ids, the service from Cleverbase's SMP metadata and the
 // eDelivery-required originalSender/finalRecipient properties.
 func buildUserMessage(payloadData []byte) (*message.Envelope, []message.PayloadPart, error) {
 	opts := []message.Option{
-		message.WithFrom(*fromID, iso6523+":"+*fromScheme),
+		message.WithFrom(*fromID, partyType(*fromScheme)),
 		message.WithFromRole("http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/initiator"),
-		message.WithTo(*toID, iso6523+":"+*toScheme),
+		message.WithTo(*toID, partyType(*toScheme)),
 		message.WithToRole("http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder"),
 		message.WithService(*service),
 		message.WithAction(*action),
 		message.WithConversationId("conv-" + uuid.New().String()),
 		// Required by eDelivery/Peppol P-Modes
-		message.WithMessageProperty("originalSender", iso6523+":"+*fromScheme+"::"+*fromID),
-		message.WithMessageProperty("finalRecipient", iso6523+":"+*toScheme+"::"+*toID),
+		message.WithMessageProperty("originalSender", partyUrn(*fromScheme, *fromID)),
+		message.WithMessageProperty("finalRecipient", partyUrn(*toScheme, *toID)),
 	}
 	builder := message.NewUserMessage(opts...)
 	if len(payloadData) > 0 {
