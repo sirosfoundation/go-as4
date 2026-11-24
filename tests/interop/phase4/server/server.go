@@ -455,7 +455,7 @@ func (s *AS4Server) verifySignature(soapXML []byte) (bool, error) {
 		return true, nil
 	}
 
-	verifier, err := security.NewRSAVerifier(s.trustedCerts[0], crypto.SHA256, crypto.SHA256, security.SignatureModePKCS1v15)
+	verifier, err := security.NewVerifierForCert(s.trustedCerts[0])
 	if err != nil {
 		return false, fmt.Errorf("failed to create verifier: %w", err)
 	}

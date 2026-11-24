@@ -3,7 +3,9 @@ package security
 
 import (
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
@@ -11,7 +13,7 @@ import (
 	"github.com/sirosfoundation/go-as4/pkg/pmode"
 )
 
-// Signer is a unified interface for XML signing (Ed25519 or RSA)
+// Signer is a unified interface for XML signing (Ed25519, RSA or ECDSA)
 type Signer interface {
 	SignEnvelope(envelopeXML []byte) ([]byte, error)
 	SignEnvelopeWithAttachments(envelopeXML []byte, attachments []Attachment) ([]byte, error)
@@ -57,6 +59,18 @@ func (f *SignerFactory) NewSigner(config *pmode.SignConfig, privateKey interface
 			return nil, fmt.Errorf("expected *rsa.PrivateKey, got %T", privateKey)
 		}
 		return NewRSASignerWithTokenRef(rsaKey, cert, crypto.SHA256, crypto.SHA256, config.TokenReference)
+
+	case pmode.AlgoECDSASHA256:
+		// ECDSA-SHA256 (ES256) signer - P-256 keys only
+		ecdsaKey, ok := privateKey.(*ecdsa.PrivateKey)
+		if !ok {
+			return nil, fmt.Errorf("expected *ecdsa.PrivateKey, got %T", privateKey)
+		}
+		if ecdsaKey.Curve != elliptic.P256() {
+			return nil, fmt.Errorf("unsupported ECDSA curve for %s: %s (only P-256/secp256r1 is supported)",
+				config.Algorithm, ecdsaKey.Curve.Params().Name)
+		}
+		return NewECDSASignerWithTokenRef(ecdsaKey, cert, config.TokenReference)
 
 	case pmode.AlgoRSASHA384:
 		// RSA-SHA384 signer
